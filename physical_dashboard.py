@@ -11,10 +11,14 @@ from serial_readonly import (SerialReadOnlyError, _read_until_prompt, _clean_out
                              open_connection)
 from serial_config import _parse_vlan_inventory
 from switch_config import ConfigurationError
-from switch_text import command_rejected
+from switch_text import command_rejected, decode_switch_text
+from switch_profiles import (PHYSICAL_INTERFACE, S3900_INVENTORY, identify, parse_interface_list)
+from console_auth import ConsoleLoginFailed, ConsoleLoginRequired, console_credentials, open_console
 
 INTERVAL = 4
 STALE_AFTER_SECONDS = 180
+IDENTITY_RECHECK_SECONDS = 60
+PROMPT_NAME = __import__("re").compile(r"(?:<([^<>\r\n]+)>|\[([^\]\r\n]+)\])\s*$")
 PORT_FIELDS = ("state", "admin", "pvid", "mode", "description", "tagged", "untagged", "rx_bps", "tx_bps")
 
 
@@ -22,8 +26,18 @@ def now():
     return datetime.now(timezone.utc).isoformat()
 
 
-def interface_name(n):
-    return f"Ethernet1/0/{n}" if n <= 24 else f"GigabitEthernet1/1/{n - 24}"
+def interface_name(n, inventory=S3900_INVENTORY):
+    return inventory.name(n)
+
+
+def prompt_name(raw):
+    """Switch name from a trailing user-view <Name> prompt, or None.
+
+    System-view prompts ([Name], [Name-Ethernet0/1]) are ignored: a name with a
+    hyphen cannot be told apart from a subview, so they never signal a new switch.
+    """
+    match = PROMPT_NAME.search(terminal_text(decode_switch_text(raw) if isinstance(raw, bytes) else raw).rstrip())
+    return match.group(1) if match and match.group(1) else None
 
 
 def terminal_text(text):
@@ -36,22 +50,20 @@ def _field(text, pattern):
 
 
 def parse_identity(text):
-    text = terminal_text(text)
-    model = _field(text, r"\b(Quidway[ \t]+3900-SI[ \t]+28-Port)\b")
-    version = _field(text, r"\b(Version[ \t]+3\.10\(CN\),[ \t]+RELEASE[ \t]+0002)\b")
-    if not model or not version:
-        raise SerialReadOnlyError("Identificação do S3900 incompleta ou incompatível; não vou atribuir dados a outro modelo.")
-    return {"model": model, "version": version,
-            "hardware": _field(text, r"^[ \t]*Hardware Version is[ \t]+([^\n]+)"),
-            "cpld": _field(text, r"^[ \t]*CPLD Version is[ \t]+([^\n]+)"),
-            "bootrom": _field(text, r"^[ \t]*Bootrom Version is[ \t]+([^\n]+)")}
+    """Identity fields of a monitored switch; unsupported systems are refused."""
+    device = identify(text)
+    if not device.profile.monitoring:
+        raise SerialReadOnlyError("Identificação incompleta ou sistema não suportado (somente VRP 3 / Comware 3); "
+                                  "não vou atribuir dados a outro modelo.")
+    return {"model": device.model, "version": device.version, "hardware": device.hardware,
+            "cpld": device.cpld, "bootrom": device.bootrom}
 
 
-def parse_port(text, number):
+def parse_port(text, number, inventory=S3900_INVENTORY):
     text = terminal_text(text)
-    interface = interface_name(number)
+    interface = interface_name(number, inventory)
     headers = re.findall(
-        r"(?mi)^[ \t]*((?:GigabitEthernet|Ethernet)1/[01]/[0-9]{1,2})[ \t]+"
+        r"(?mi)^[ \t]*" + PHYSICAL_INTERFACE.pattern + r"[ \t]+"
         r"(?:current[ \t]+state[ \t]*:|is)[ \t]*", text)
     # Field labels have no interface identity of their own. Require the exact
     # section and reject mixed/late responses before associating any field.
@@ -77,11 +89,11 @@ def parse_port(text, number):
             "tx_bps": int(tx)*8 if tx is not None else None, "collected_at": now()}
 
 
-def parse_brief(text):
+def parse_brief(text, inventory=S3900_INVENTORY):
     """Accept only full, recognized interface IDs and explicit state columns."""
     result = {}
-    for n in range(1, 29):
-        interface = interface_name(n)
+    for n in range(1, len(inventory) + 1):
+        interface = interface_name(n, inventory)
         m = re.search(rf"(?mi)^[ \t]*{re.escape(interface)}[ \t]+(UP|DOWN|ADM|ADMIN[ \t]+DOWN)\b", terminal_text(text))
         if m:
             result[n] = {"state": "up" if m[1].lower() == "up" else "down",
@@ -90,15 +102,13 @@ def parse_brief(text):
     return result
 
 
-def _vlan_member_sections(text):
+def _vlan_member_sections(text, inventory=S3900_INVENTORY):
     """Parse VRP multiline VLAN member lists, without guessing damaged port IDs."""
     recognized = {}
     partial = False
     current = None
-    entry = re.compile(
-        r"(?i)\b(?:Ethernet1/0/(?:[1-9]|1[0-9]|2[0-4])|"
-        r"GigabitEthernet1/1/[1-4])\b"
-    )
+    # Exact names of this switch's ports; never a prefix of a longer name.
+    entry = re.compile(r"(?i)(?<![A-Za-z0-9/-])(?:" + inventory.pattern() + r")(?![0-9/])")
     header = re.compile(r"(?i)^[ \t]*(Tagged|Untagged)[ \t]+Ports[ \t]*:[ \t]*(.*)$")
     for raw in terminal_text(text).splitlines():
         match = header.match(raw)
@@ -118,11 +128,7 @@ def _vlan_member_sections(text):
             continue
         matches = list(entry.finditer(value))
         for m in matches:
-            name = m[0]
-            recognized[current]["ports"].add(
-                int(name.rsplit("/", 1)[-1]) +
-                (24 if name.lower().startswith("gigabit") else 0)
-            )
+            recognized[current]["ports"].add(inventory.number(m[0]))
         residual = entry.sub(" ", value)
         # A damaged Ethernet name is incomplete information, not a missing port.
         if re.search(r"(?i)\b(?:Ethernet|GigabitEthernet)", residual) or "\ufffd" in residual:
@@ -141,13 +147,13 @@ def _members_label(tagged, untagged, *, partial=False):
     return "; ".join(labels) + (" (leitura parcial)" if partial else "")
 
 
-def parse_vlan_detail(text, vlan):
+def parse_vlan_detail(text, vlan, inventory=S3900_INVENTORY):
     text = terminal_text(text)
     actual = _field(text, r"^[ \t]*VLAN[ \t]+ID[ \t]*:[ \t]*(\d{1,4})\b")
     if actual is None or int(actual) != vlan:
         return None
     name = _field(text, r"^[ \t]*(?:VLAN[ \t]+)?Description[ \t]*:[ \t]*([^\n]+)")
-    sections, partial = _vlan_member_sections(text)
+    sections, partial = _vlan_member_sections(text, inventory)
     tagged = sections.get("tagged", {}).get("ports", set())
     untagged = sections.get("untagged", {}).get("ports", set())
     both_present = "tagged" in sections and "untagged" in sections
@@ -219,16 +225,16 @@ def reconcile_vlan_members(data):
             row["members"] = None
 
 
-def parse_mac_table(text):
+def parse_mac_table(text, inventory=S3900_INVENTORY):
     """Recognize legacy learned-MAC rows; never guess from arbitrary text."""
     text = terminal_text(text)
     pattern = re.compile(
         r"(?mi)^[ \t]*([0-9a-f]{4}(?:-[0-9a-f]{4}){2}|[0-9a-f]{2}(?::[0-9a-f]{2}){5})"
         r"[ \t]+([0-9]{1,4})[ \t]+(?:learned|dynamic)[ \t]+"
-        r"((?:GigabitEthernet|Ethernet)1/[01]/[0-9]{1,2})\b"
+        + PHYSICAL_INTERFACE.pattern
     )
     rows = []
-    interfaces = {interface_name(n).lower(): n for n in range(1, 29)}
+    interfaces = {name.lower(): n for n, name in enumerate(inventory.names, start=1)}
     for m in pattern.finditer(text):
         port = interfaces.get(m[3].lower())
         vlan = int(m[2])
@@ -248,7 +254,32 @@ class PhysicalDashboard:
     """Read-only collector with atomic publications and fair per-port scheduling."""
     def __init__(self):
         self._lock = threading.RLock()
+        # Called with (old_device, new_device) when a different switch is identified.
+        self.listeners = []
+        self.last_fingerprint = None
         self.reset()
+
+    @property
+    def inventory(self):
+        device = self.device
+        return device.inventory if device is not None and device.inventory else S3900_INVENTORY
+
+    def _port_template(self, inventory):
+        return [{"number": n, "interface": name, **dict.fromkeys(PORT_FIELDS), "collected_at": None,
+                 "field_observed_at": {}} for n, name in enumerate(inventory.names, start=1)]
+
+    def _remember_device(self, device):
+        """Record the identified switch and tell listeners if it is a different one."""
+        previous = self.last_fingerprint
+        console_credentials.bind(device.fingerprint)
+        self.device = device
+        self.last_fingerprint = device.fingerprint
+        if previous is not None and previous != device.fingerprint:
+            for listener in list(self.listeners):
+                try:
+                    listener(device)
+                except Exception:  # a listener must never break monitoring
+                    pass
 
     def reset(self):
         self.data = None
@@ -266,6 +297,10 @@ class PhysicalDashboard:
         self.settings_key = None
         self.dirty = True
         self.error = None
+        self.device = None
+        self.prompt = None
+        self.identity_checked = 0.0
+        self.login_required = False
 
     def invalidate(self, plan=None):
         with self._lock:
@@ -279,9 +314,10 @@ class PhysicalDashboard:
                     for row in self.data.get("vlans") or []:
                         row["read_error"] = "Estado pendente após uso da CLI."
                 return
+            inventory = self.inventory
             for command in plan.commands:
-                for n in range(1, 29):
-                    if command.lower() == ("interface " + interface_name(n)).lower():
+                for n in range(1, len(inventory) + 1):
+                    if command.lower() == ("interface " + interface_name(n, inventory)).lower():
                         self.priority_ports.add(n)
                         if self.data:
                             self.data["ports"][n - 1]["read_error"] = "Alteração aguardando nova leitura."
@@ -324,8 +360,12 @@ class PhysicalDashboard:
             snapshot["inventory_stale"] = bool(snapshot.get("inventory_error")) or bool(snapshot.get("inventory_missing")) or _expired(snapshot.get("inventory_at"), instant)
             snapshot["stale_after_seconds"] = STALE_AFTER_SECONDS
             snapshot["coverage_partial"] = any(port["stale"] for port in snapshot["ports"]) or snapshot["inventory_stale"] or any(row["stale"] or row["membership_stale"] for row in snapshot.get("vlans") or [])
+        device = self.device
         return {"snapshot": snapshot, "outputs": outputs, "stale": stale,
-                "message": error, "collected_at": snapshot.get("collected_at") if snapshot else None}
+                "message": error, "collected_at": snapshot.get("collected_at") if snapshot else None,
+                "device": device.public() if device is not None else None,
+                "login_required": self.login_required,
+                "console_credentials": console_credentials.available}
 
     def collect(self, settings, force=False):
         key = (settings.port, settings.baud_rate)
@@ -335,12 +375,11 @@ class PhysicalDashboard:
         if not force and not self.dirty and time.monotonic() - self.last_attempt < INTERVAL:
             return self.cached()
         self.last_attempt = time.monotonic()
-        data = copy.deepcopy(self.data) if self.data else {
-            "ports": [{"number": n, "interface": interface_name(n),
-                       **dict.fromkeys(PORT_FIELDS), "collected_at": None,
-                       "field_observed_at": {}} for n in range(1, 29)],
-            "vlans": None,
-        }
+        def fresh():
+            # Ports are known only after identification (fixed or discovered inventory).
+            return {"ports": self._port_template(self.inventory) if self.device else [], "vlans": None}
+
+        data = copy.deepcopy(self.data) if self.data else fresh()
         outputs, notes, failures = [], [], []
         observed_at = None
         active_command = "conexão serial"
@@ -371,7 +410,7 @@ class PhysicalDashboard:
             if observed_at:
                 data["collected_at"] = observed_at
             data.update(port=settings.port, baud_rate=settings.baud_rate,
-                        notes=list(notes), expected_ports=28)
+                        notes=list(notes), expected_ports=len(data.get("ports") or []))
             reconcile_vlan_members(data)
             with self._lock:
                 # Failed bootstrap must never create a usable unidentified
@@ -414,8 +453,8 @@ class PhysicalDashboard:
         def refresh_port(connection, number):
             old = data["ports"][number - 1]
             old["read_error"] = "Leitura da porta não concluída."
-            text = query(connection, "display interface " + interface_name(number))
-            new = None if command_rejected(text) else parse_port(text, number)
+            text = query(connection, "display interface " + interface_name(number, self.inventory))
+            new = None if command_rejected(text) else parse_port(text, number, self.inventory)
             if not new:
                 old["read_error"] = f"Porta {number}: resposta não reconhecida; leitura anterior preservada."
                 fail(old["read_error"])
@@ -448,7 +487,7 @@ class PhysicalDashboard:
                 observe()
                 notes.append(f"VLAN {vlan}: ausência confirmada por consulta individual.")
                 return
-            new = None if command_rejected(text) else parse_vlan_detail(text, vlan)
+            new = None if command_rejected(text) else parse_vlan_detail(text, vlan, self.inventory)
             if not new:
                 message = f"VLAN {vlan}: consulta individual não confirmada; dados anteriores preservados."
                 for row in data.get("vlans") or []:
@@ -490,7 +529,7 @@ class PhysicalDashboard:
             if data.get("mac_table") is not None:
                 data["mac_table"]["read_error"] = "Leitura da tabela MAC não concluída."
             text = query(connection, "display mac-address")
-            macs = None if command_rejected(text) else parse_mac_table(text)
+            macs = None if command_rejected(text) else parse_mac_table(text, self.inventory)
             if macs is None:
                 message = "Tabela MAC não reconhecida; leitura anterior preservada."
                 if data.get("mac_table") is not None:
@@ -501,14 +540,67 @@ class PhysicalDashboard:
             macs["entries"].sort(key=lambda row: (row["port"], row["vlan"], row["mac"]))
             data["mac_table"] = macs
 
+        def discover_ports(connection):
+            """Physical ports of a switch without a fixed profile inventory."""
+            nonlocal active_command
+            for command in ("display brief interface", "display interface brief"):
+                text = query(connection, command)
+                found = None if command_rejected(text) else parse_interface_list(text)
+                if found:
+                    return found
+            # Slow at 9600 baud but universal on VRP 3 / Comware 3; done once per switch.
+            active_command = "display current-configuration"
+            connection.write(b"display current-configuration\r")
+            raw = _read_until_prompt(connection, 240, max_bytes=1_000_000)
+            text = _clean_output(raw, "display current-configuration")
+            return None if command_rejected(text) else parse_interface_list(text)
+
+        def identify_switch(connection):
+            device = identify(query(connection, "display version"))
+            self.identity_checked = time.monotonic()
+            if not device.profile.monitoring:
+                self._remember_device(device)
+                raise SerialReadOnlyError(f"{device.vendor} {device.model}: {device.profile.note}")
+            inventory = device.profile.fixed_inventory or discover_ports(connection)
+            if not inventory:
+                raise SerialReadOnlyError("Switch identificado, mas não consegui listar as portas físicas.")
+            device = device.with_inventory(inventory)
+            self._remember_device(device)
+            return device
+
         try:
             with open_connection(settings) as connection:
-                connection.reset_input_buffer()
-                connection.write(b"\r")
                 active_command = "prompt serial"
-                _read_until_prompt(connection, min(settings.timeout_seconds, 10))
+                try:
+                    wake = open_console(connection, min(settings.timeout_seconds, 10),
+                                        reader=lambda *a, **k: _read_until_prompt(*a, **k))
+                    self.login_required = False
+                except (ConsoleLoginRequired, ConsoleLoginFailed):
+                    self.login_required = True
+                    raise
+                name = prompt_name(wake)
+                if name and self.prompt and name != self.prompt and data.get("identity_verified"):
+                    # Different prompt: possibly another switch on the cable. Identify again.
+                    notes.append(f"Prompt mudou de <{self.prompt}> para <{name}>; identificando o switch novamente.")
+                    self.reset()
+                    self.settings_key = key
+                    data = fresh()
+                self.prompt = name or self.prompt
+                if (data.get("identity_verified") and self.device is not None
+                        and time.monotonic() - self.identity_checked >= IDENTITY_RECHECK_SECONDS):
+                    current = identify(query(connection, "display version"))
+                    self.identity_checked = time.monotonic()
+                    if current.identity_key != self.device.identity_key:
+                        notes.append(f"Novo switch detectado: {current.vendor} {current.model}.")
+                        self.reset()
+                        self.settings_key = key
+                        data = fresh()
                 if not data.get("identity_verified"):
-                    data.update(parse_identity(query(connection, "display version")))
+                    device = identify_switch(connection)
+                    data = {**fresh(), **{k: v for k, v in data.items() if k not in ("ports",)}}
+                    data["ports"] = self._port_template(device.inventory)
+                    data.update(model=device.model, version=device.version, hardware=device.hardware,
+                                cpld=device.cpld, bootrom=device.bootrom)
                     data["identity_verified"] = True
                     data["name"] = data["model"]
                     observe()
@@ -523,7 +615,7 @@ class PhysicalDashboard:
                         number = min(self.priority_ports)
                         self.priority_ports.discard(number)
                     else:
-                        number = self.port_cursor % 28 + 1
+                        number = self.port_cursor % len(self.inventory) + 1
                         self.port_cursor += 1
                         self.priority_ports.discard(number)
                     refresh_port(connection, number)

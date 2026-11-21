@@ -183,3 +183,10 @@ section[id],article[id]{scroll-margin-top:116px}
 html[data-mode="serial"] .port.stale{background:#fff7e5;border-color:#d9bb7d;color:#805400}
 html[data-mode="serial"] .port.stale .port-state{color:#805400}
 .admin-pending-count{display:inline-block;min-width:18px;margin-left:6px;padding:1px 6px;border-radius:999px;background:#ad2938;color:#fff;font-size:11px;font-weight:700;line-height:16px;text-align:center}
+.mode-banner.error{background:#fff1f1;border-color:#d79aa0;color:#ad2938}
+.mode-banner.error .banner-icon{background:#ad2938;color:#fff}
+/* Administração e Sair ficam no fim da barra de navegação, como os demais itens. */
+.nav-end{display:flex;align-items:inherit;gap:inherit;margin-left:auto}
+.nav-end .logout-form{display:flex;align-items:inherit}
+:where(button.nav-item){border:0;background:transparent;font-family:inherit;line-height:inherit;cursor:pointer}
+.nav-item .admin-pending-count{display:inline-block;width:auto;font-size:11px;color:#fff}

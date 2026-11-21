@@ -49,6 +49,17 @@ class ManagerTest(unittest.TestCase):
         with provider():
             for _ in range(8): self.assertEqual(self.client.post('/login',data={'csrf_token':token}).status_code,302)
             self.assertEqual(self.client.post('/login',data={'csrf_token':token}).status_code,429)
+    def test_login_rate_limit_is_per_browser_behind_a_shared_proxy(self):
+        # Behind Tailscale Serve/Docker every browser arrives as 127.0.0.1: one
+        # anonymous client exhausting its bucket must not lock others out of SSO.
+        self.client.get('/login')
+        with self.client.session_transaction() as sess: token=sess['csrf_token']
+        with provider():
+            for _ in range(8): self.client.post('/login',data={'csrf_token':token})
+            self.assertEqual(self.client.post('/login',data={'csrf_token':token}).status_code,429)
+            victim=manager.app.test_client(); victim.get('/login')
+            with victim.session_transaction() as sess: victim_token=sess['csrf_token']
+            self.assertEqual(victim.post('/login',data={'csrf_token':victim_token}).status_code,302)
     def test_demo_and_write_guards(self):
         token=self.login(); headers={'X-CSRF-Token':token}
         self.assertEqual(self.client.post('/api/refresh',json={},headers=headers).status_code,200)

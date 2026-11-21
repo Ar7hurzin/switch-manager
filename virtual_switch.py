@@ -13,18 +13,67 @@ from pathlib import Path
 
 _LOCK = threading.RLock()
 VERSION = "Quidway 3900-SI 28-Port\nVRP (R) Software, Version 3.10(CN), RELEASE 0002\nS3900 VIRTUAL - simulated firmware response; not Huawei firmware"
+UNRECOGNIZED = "% Unrecognized command found at '^' position."
+
+# Simulated legacy VRP 3 / Comware 3 switches (QM_VIRTUAL_MODEL). The S3026C and
+# 3Com behaviours are SYNTHETIC, based on the manuals, to exercise the adaptive
+# configuration; they are not captures of real firmware.
+MODELS = {
+    "s3900": {
+        "version": VERSION, "name": "S3900-Virtual",
+        "ports": [f"Ethernet1/0/{n}" for n in range(1, 25)] + [f"GigabitEthernet1/1/{n}" for n in range(1, 5)],
+        "brief": {"display interface brief", "display interface"}, "rejects": set(),
+    },
+    "s3026c": {
+        "version": ("VRP (R) Software, Version 3.10, Release 0035\nQuidway S3026C uptime is 0 week, 0 day, 1 hour\n"
+                    "S3026C VIRTUAL - simulated firmware response; not Huawei firmware"),
+        "name": "S3026C-Virtual",
+        "ports": [f"Ethernet0/{n}" for n in range(1, 25)] + ["GigabitEthernet1/1", "GigabitEthernet2/1"],
+        "brief": {"display brief interface"}, "rejects": {"display interface brief"},
+    },
+    "3com4500": {
+        "version": ("3Com Corporation\nComware Platform Software, Software Version 3.10, Release 2202P13\n"
+                    "3Com Switch 4500 26-Port uptime is 0 week, 0 day, 0 hour\n"
+                    "3COM 4500 VIRTUAL - simulated firmware response; not 3Com firmware"),
+        "name": "4500-Virtual",
+        "ports": [f"Ethernet1/0/{n}" for n in range(1, 25)] + ["GigabitEthernet1/0/25", "GigabitEthernet1/0/26"],
+        # This model refuses the bulk hybrid cleanup: hybrid must move to the CLI.
+        "brief": {"display brief interface"}, "rejects": {"display interface brief", "undo port hybrid vlan 1 to 4094"},
+    },
+}
+
+
+def model_id():
+    model = os.getenv("QM_VIRTUAL_MODEL", "s3900").strip().lower() or "s3900"
+    if model not in MODELS:
+        raise ValueError("QM_VIRTUAL_MODEL deve ser " + ", ".join(MODELS) + ".")
+    return model
+
+
+def model():
+    return MODELS[model_id()]
+
+
+def version():
+    return model()["version"]
+
+
+def port_names():
+    return list(model()["ports"])
 
 
 def state_path():
     settings = Path(os.getenv("QM_SETTINGS_FILE", Path(__file__).with_name("local-settings.ps1")))
-    return Path(os.getenv("QM_VIRTUAL_STATE", settings.parent / "instance" / "s3900-virtual.json")).expanduser()
+    default = "s3900-virtual.json" if model_id() == "s3900" else f"s3900-virtual-{model_id()}.json"
+    return Path(os.getenv("QM_VIRTUAL_STATE", settings.parent / "instance" / default)).expanduser()
 
 
 def _initial():
-    return {"name": "S3900-Virtual", "vlans": {"1": "default"},
+    total = len(port_names())
+    return {"name": model()["name"], "vlans": {"1": "default"},
             "ports": {str(n): {"admin": True, "link": n in {1, 4, 24, 25}, "mode": "access",
                                "pvid": 1, "tagged": [], "untagged": [1], "description": ""}
-                      for n in range(1, 29)},
+                      for n in range(1, total + 1)},
             "ips": {}, "routes": [], "last_saved": None, "saved": None}
 
 
@@ -58,7 +107,15 @@ def _store(state):
 
 
 def _interface(n):
-    return f"Ethernet1/0/{n}" if n <= 24 else f"GigabitEthernet1/1/{n-24}"
+    return port_names()[n - 1]
+
+
+def _port_number(name):
+    lowered = name.lower()
+    for index, candidate in enumerate(port_names(), start=1):
+        if candidate.lower() == lowered:
+            return index
+    return None
 
 
 def _members(state, vlan):
@@ -72,7 +129,11 @@ def snapshot():
         ports = [{"number": int(n), "interface": _interface(int(n)), "state": "up" if p["admin"] and p["link"] else "down",
                   "admin": p["admin"], "mode": p["mode"], "pvid": p["pvid"], "description": p["description"],
                   "tagged": p["tagged"], "untagged": p["untagged"]} for n,p in s["ports"].items()]
-        return {"name": s["name"], "model": "Quidway 3900-SI 28-Port · virtual", "version": "VRP 3.10(CN) RELEASE 0002 · simulado",
+        lines = version().splitlines()
+        label = next((line.split(" uptime")[0] for line in lines if " uptime is" in line), "Quidway 3900-SI 28-Port")
+        release = next((line for line in lines if "Version" in line), "")
+        return {"name": s["name"], "model": label + " · virtual", "version": release + " · simulado",
+                "virtual_model": model_id(),
                 "ports": ports, "vlans": [{"id": int(v), "name": name, "members": _members(s,int(v)), "note": "Virtual"} for v,name in sorted(s["vlans"].items(),key=lambda x:int(x[0]))],
                 "ips": s["ips"], "routes": s["routes"], "last_saved": s["last_saved"],
                 "dirty": s["saved"] != {k:v for k,v in s.items() if k not in {"saved","last_saved"}}}
@@ -118,7 +179,10 @@ class VirtualConsole:
     def _prompt(self,s):
         name=s["name"]
         if self.view=="user": return f"<{name}>"
-        suffix = {"system":"","vlan":f"-vlan{self.target}","port":f"-{_interface(int(self.target or 1))}","ip":f"-Vlan-interface{self.target}"}[self.view]
+        if self.view=="port":
+            suffix=f"-{_interface(int(self.target or 1))}"
+        else:
+            suffix={"system":"","vlan":f"-vlan{self.target}","ip":f"-Vlan-interface{self.target}"}[self.view]
         return f"[{name}{suffix}]"
     def write(self,data):
         if self.closed: raise OSError("Console virtual encerrado.")
@@ -142,7 +206,8 @@ class VirtualConsole:
                 return "Configuration saved successfully (virtual).",True
             return "Save cancelled.",False
         if not c: return "",False
-        if c=="display version": return VERSION,False
+        if c in model()["rejects"]: return UNRECOGNIZED,False
+        if c=="display version": return version(),False
         if c=="display vlan":
             return "Following VLAN exist(s):\n" + ", ".join(v + (" (default)" if v=="1" else "") for v in sorted(s["vlans"],key=int))+"\n\nVLAN ID  Name\n"+"\n".join(f"{v} {n}" for v,n in sorted(s["vlans"].items(),key=lambda x:int(x[0]))),False
         match = re.fullmatch(r"display vlan (\d+)", c)
@@ -154,18 +219,19 @@ class VirtualConsole:
             untagged = [_interface(int(n)) for n,p in s["ports"].items() if int(vlan) in p["untagged"]]
             return (f"VLAN ID: {vlan}\nDescription: {s['vlans'][vlan]}\nTagged Ports: " +
                     (" ".join(tagged) or "none") + "\nUntagged Ports: " + (" ".join(untagged) or "none")), False
-        match = re.fullmatch(r"display interface ((?:Ethernet1/0/|GigabitEthernet1/1/)\d+)", c)
+        match = re.fullmatch(r"display interface ((?:GigabitEthernet|Ethernet)[0-9/]+)", c)
         if match:
-            number = next((n for n in s["ports"] if _interface(int(n)) == match[1]), None)
+            number = _port_number(match[1])
             if number is None:
                 raise ValueError("Invalid interface")
+            number = str(number)
             port = s["ports"][number]
             state = 'Administratively DOWN' if not port['admin'] else 'UP' if port['link'] else 'DOWN'
             return (f"{match[1]} current state : {state}\nDescription: {port['description']}\n"
                     f"PVID: {port['pvid']}\nPort link-type: {port['mode']}\nTagged VLAN ID: " +
                     (" ".join(map(str, port['tagged'])) or "none") + "\nUntagged VLAN ID: " +
                     (" ".join(map(str, port['untagged'])) or "none")), False
-        if c in {"display interface brief","display interface"}:
+        if c in model()["brief"]:
             return "\n".join(f"{_interface(int(n))} {'UP' if p['admin'] and p['link'] else 'DOWN'} {p['mode']} PVID {p['pvid']}" for n,p in s["ports"].items()),False
         if c=="display current-configuration": return _configuration(s),False
         if c=="display saved-configuration": return _configuration(s["saved"]) if s["saved"] else "No saved configuration.",False
@@ -193,11 +259,11 @@ class VirtualConsole:
                 s["vlans"].setdefault(v,f"VLAN{v}"); self.view="vlan"; self.target=v; return "",True
             m=re.fullmatch(r"sysname ([A-Za-z0-9_.-]{1,31})",c)
             if m: s["name"]=m[1]; return "",True
-            m=re.fullmatch(r"interface (Ethernet1/0/|GigabitEthernet1/1/)(\d+)",c)
+            m=re.fullmatch(r"interface ((?:GigabitEthernet|Ethernet)[0-9/]+)",c)
             if m:
-                n=int(m[2])
-                if not (1<=n<=(24 if m[1].startswith("Ethernet") else 4)): raise ValueError("Invalid interface")
-                self.view="port"; self.target=str(n+(24 if m[1].startswith("Gigabit") else 0)); return "",False
+                n=_port_number(m[1])
+                if n is None: raise ValueError("Invalid interface")
+                self.view="port"; self.target=str(n); return "",False
             m=re.fullmatch(r"interface Vlan-interface (\d+)",c)
             if m:
                 if str(int(m[1])) not in s["vlans"]: raise ValueError("VLAN does not exist")

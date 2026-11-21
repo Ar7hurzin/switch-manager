@@ -23,7 +23,8 @@ SECOND = 'second@example.test'
 ACCESS_FILE = os.path.join(tempfile.mkdtemp(prefix='qm-access-test-'), 'access-list.json')
 ENV = dict(QM_OIDC_ISSUER=ISSUER, QM_OIDC_CLIENT_ID=CLIENT_ID, QM_OIDC_CLIENT_SECRET=CLIENT_SECRET,
            QM_OIDC_ALLOWED_EMAILS=f'{ADMIN},{SECOND}', QM_OIDC_REDIRECT_URI='http://127.0.0.1:8787/auth/callback',
-           QM_ACCESS_FILE=ACCESS_FILE)
+           QM_ACCESS_FILE=ACCESS_FILE,
+           QM_CAPABILITIES_FILE=os.path.join(os.path.dirname(ACCESS_FILE), 'switch-capabilities.json'))
 
 KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 KID = 'test-key-1'

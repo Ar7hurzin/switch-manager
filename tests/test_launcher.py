@@ -12,7 +12,7 @@ class LauncherTest(unittest.TestCase):
             p.write_text("$env:QM_OIDC_ISSUER = 'https://idp.example.test'\n$env:QM_OIDC_CLIENT_ID = 'launcher-test'\n$env:QM_OIDC_ALLOWED_EMAILS = 'admin@example.test'\n$env:QM_SECRET_KEY = '"+secrets.token_urlsafe(48)+"'\n",encoding='utf-8')
             with socket.socket() as s:
                 s.bind(('127.0.0.1',0)); port=s.getsockname()[1]
-            env={k:v for k,v in os.environ.items() if not k.startswith('QM_')}; env.update(QM_SETTINGS_FILE=str(p),QM_WEB_PORT=str(port),QM_MODE='demo')
+            env={k:v for k,v in os.environ.items() if not k.startswith('QM_')}; env.update(QM_SETTINGS_FILE=str(p),QM_WEB_PORT=str(port),QM_MODE='demo',PYTHONUTF8='1',PYTHONIOENCODING='utf-8')
             cmd=[sys.executable,str(ROOT/'start.py')]
             proc=subprocess.Popen(cmd,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
             try:
@@ -52,7 +52,8 @@ class OutdatedInstanceTest(unittest.TestCase):
             p = Path(tmp)/'local-settings.ps1'
             p.write_text("$env:QM_OIDC_ISSUER = 'https://idp.example.test'\n$env:QM_OIDC_CLIENT_ID = 'x'\n$env:QM_OIDC_ALLOWED_EMAILS = 'a@example.test'\n$env:QM_SECRET_KEY = '"+secrets.token_urlsafe(48)+"'\n", encoding='utf-8')
             env = {k: v for k, v in os.environ.items() if not k.startswith('QM_')}
-            env.update(QM_SETTINGS_FILE=str(p), QM_WEB_PORT=str(server.server_address[1]))
+            # Windows consoles default to a legacy code page; the message contains accents.
+            env.update(QM_SETTINGS_FILE=str(p), QM_WEB_PORT=str(server.server_address[1]), PYTHONUTF8='1', PYTHONIOENCODING='utf-8')
             result = subprocess.run([sys.executable, str(ROOT/'start.py')], env=env, capture_output=True,
                                     text=True, encoding='utf-8', timeout=15)
         self.assertEqual(result.returncode, 2)

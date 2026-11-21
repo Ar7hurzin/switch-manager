@@ -21,7 +21,7 @@ import time
 from dataclasses import dataclass
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote_plus, urlencode, urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 import jwt
 
@@ -211,6 +211,18 @@ class OIDCSettings:
         return isinstance(email, str) and bool(self.admin) and email.lower() == self.admin
 
 
+class _SecureRedirects(HTTPRedirectHandler):
+    """Follow provider redirects only to https (or http on loopback, for a local test IdP)."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if _url_problem(newurl, "redirect", allow_loopback_http=True) is not None:
+            raise HTTPError(newurl, code, "Redirecionamento inseguro recusado.", headers, fp)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+_OPENER = build_opener(_SecureRedirects())
+
+
 def _http_json(url: str, *, form: dict | None = None, basic_auth: tuple[str, str] | None = None) -> dict:
     """Single network primitive (patched by tests). Errors never leak details to the browser."""
     headers = {"Accept": "application/json", "User-Agent": "QuidwayManager-OIDC/1"}
@@ -223,7 +235,7 @@ def _http_json(url: str, *, form: dict | None = None, basic_auth: tuple[str, str
         headers["Authorization"] = "Basic " + base64.b64encode(pair.encode("ascii")).decode("ascii")
     request = Request(url, data=body, headers=headers, method="POST" if body is not None else "GET")
     try:
-        with urlopen(request, timeout=HTTP_TIMEOUT_SECONDS) as response:
+        with _OPENER.open(request, timeout=HTTP_TIMEOUT_SECONDS) as response:
             raw = response.read(MAX_RESPONSE_BYTES + 1)
     except HTTPError as exc:
         # OAuth error codes (invalid_client, invalid_grant…) carry no secrets and explain the failure.

@@ -17,11 +17,15 @@ from flask import Flask, jsonify, redirect, render_template_string, request, sen
 from waitress import serve
 
 from serial_readonly import SerialSettings, SerialReadOnlyError, collect_serial_diagnostics
-from serial_config import execute_plan, export_current_configuration, prepare_plan
+from serial_config import CommandRejected, execute_plan, export_current_configuration, prepare_plan
+from switch_capabilities import SwitchCapabilities
 from serial_cli import SerialCLIError, cli_session
 from ssh_readonly import SwitchSettings, SSHReadOnlyError, collect_diagnostics
-from switch_config import ConfigurationError, build_plan, consume_preview, issue_preview
-from virtual_switch import snapshot as virtual_snapshot
+from switch_config import ConfigurationError, build_plan, clear_previews, consume_preview, issue_preview
+from virtual_switch import VERSION as VIRTUAL_VERSION, snapshot as virtual_snapshot
+import virtual_switch
+from switch_profiles import Inventory, identify
+from console_auth import console_credentials, validate_credentials
 from physical_dashboard import PhysicalDashboard
 from live_monitor import LiveMonitor
 from lab_capture import record_lab_reading
@@ -30,6 +34,31 @@ from oidc_auth import GOOGLE_ISSUER, OIDCClient, OIDCError, OIDCNotAuthorized, O
 from access_list import AccessList, AccessListError
 
 physical_dashboard = PhysicalDashboard()
+# The validated S3900 identity, used by the virtual switch and as the safe default
+# before a physical switch has been identified.
+DEFAULT_DEVICE = identify(VIRTUAL_VERSION)
+
+
+def _on_switch_changed(device):
+    # A preview built for the previous switch must never be applied to this one.
+    clear_previews()
+
+
+physical_dashboard.listeners.append(_on_switch_changed)
+# Operations each switch model rejected: they become CLI-only for that model.
+switch_capabilities = SwitchCapabilities()
+UNVALIDATED_WARNING = ("Modelo ainda não validado neste programa: os comandos seguem a sintaxe do manual VRP 3. "
+                       "Confira a prévia. Se o switch recusar um comando, os anteriores já terão sido aplicados "
+                       "e esta operação passará a ser feita pela CLI neste modelo.")
+
+
+def _capability_key(device) -> str:
+    # Simulated switches never mark real models of the same firmware as CLI-only.
+    return ("virtual:" if mode() == "virtual" else "") + device.identity_key
+
+
+def _unsupported_actions(device) -> dict:
+    return switch_capabilities.unsupported(_capability_key(device)) if device is not None else {}
 
 atexit.register(cli_session.shutdown)
 
@@ -69,14 +98,32 @@ _serial_request_lock = threading.Lock()
 _login_attempts = {}
 _login_lock = threading.Lock()
 
+LOGIN_ATTEMPTS_PER_MINUTE = 8
+MAX_LOGIN_RATE_KEYS = 1024
+
+
+def _login_rate_key():
+    """Per browser, not per address: behind Tailscale Serve, Docker or any local
+    proxy every client arrives as 127.0.0.1, so an address-only bucket would let
+    one anonymous client lock everybody out of SSO."""
+    browser = session.get("qm_login_rl")
+    if not isinstance(browser, str):
+        browser = secrets.token_urlsafe(16)
+        session["qm_login_rl"] = browser
+    return (request.remote_addr or "local", browser)
+
+
 def _login_rate_allowed():
     now = time.monotonic()
-    key = request.remote_addr or "local"
+    key = _login_rate_key()
     with _login_lock:
         for k, (_, until) in list(_login_attempts.items()):
             if until <= now: _login_attempts.pop(k, None)
+        # Bounded memory without denying newcomers: evict the oldest buckets.
+        while key not in _login_attempts and len(_login_attempts) >= MAX_LOGIN_RATE_KEYS:
+            _login_attempts.pop(next(iter(_login_attempts)))
         count, until = _login_attempts.get(key, (0, now + 60))
-        if count >= 8 or (key not in _login_attempts and len(_login_attempts) >= 1024):
+        if count >= LOGIN_ATTEMPTS_PER_MINUTE:
             return False
         _login_attempts[key] = (count + 1, until)
         return True
@@ -212,6 +259,10 @@ def prevent_caching(response):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["X-Frame-Options"] = "DENY"
+    # No inline scripts/styles and no third-party origins: an injected tag cannot run.
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
+        "connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
     return response
 
 DEMO_DATA: dict[str, Any] = {
@@ -271,8 +322,22 @@ def start_live_monitor():
         physical_monitor.start()
 
 
+def current_device():
+    """The switch the panel is working with, or None while not identified."""
+    if mode() == "virtual":
+        # Identified exactly like a physical switch: from its version text and ports.
+        device = identify(virtual_switch.version())
+        return device if device.inventory else device.with_inventory(Inventory(tuple(virtual_switch.port_names())))
+    if mode() == "serial":
+        return physical_dashboard.device
+    return None
+
+
 def config_writes_enabled() -> bool:
-    if mode() == "virtual": return True
+    device = current_device()
+    if mode() == "virtual": return device.profile.guided_config
+    if device is not None and not device.profile.guided_config:
+        return False  # incompatible system: CLI only
     return os.getenv("QM_ENABLE_CONFIG_WRITES", "false").strip().lower() in {"1", "true", "yes", "on"}
 
 
@@ -350,11 +415,17 @@ def auth_callback():
     except OIDCError as exc:
         return _render_login(str(exc), 401)
     try:
-        session_id = _session_registry.issue(identity["email"], _credential_version(), SESSION_MAX_AGE_SECONDS)
+        session_id = _session_registry.issue(identity["email"], _credential_version(), SESSION_MAX_AGE_SECONDS,
+                                             org_domain=identity.get("org_domain"))
     except ValueError as exc:
         return _render_login(str(exc), 503)
+    if not _authorized(identity["email"], identity.get("org_domain")):
+        # Access was removed while this login was in flight, after the IdP check
+        # but before the session existed: the removal could not revoke it.
+        _session_registry.revoke(session_id)
+        return _render_login("Seu acesso foi removido pelo administrador.", 403)
     with _login_lock:
-        _login_attempts.pop(request.remote_addr or "local", None)
+        _login_attempts.pop((request.remote_addr or "local", session.get("qm_login_rl")), None)
     _invalidate_browser_session()
     session.permanent = True
     session["qm_user"] = identity["email"]
@@ -639,7 +710,82 @@ def admin_access_remove():
         return jsonify({"ok": False, "error": str(exc)}), 400
     except OSError:
         return jsonify({"ok": False, "error": "Não foi possível gravar a lista de acesso."}), 503
-    return jsonify({"ok": True, "value": value, "entries": access_list.entries()})
+    revoked = _revoke_unauthorized_sessions()
+    return jsonify({"ok": True, "value": value, "entries": access_list.entries(), "revoked_sessions": revoked})
+
+
+def _revoke_unauthorized_sessions() -> int:
+    """End, server-side, every session whose identity is no longer authorized.
+
+    Without this, a copied cookie that stayed idle during the removal would
+    regain access if the same e-mail/domain were later re-added or approved.
+    """
+    revoked = _session_registry.revoke_where(lambda user, domain: not _authorized(user, domain))
+    for session_id in revoked:
+        cli_session.request_close_owner(session_id)
+    if revoked:
+        with _active_sessions_lock:
+            for session_id in revoked:
+                _active_sessions.pop(session_id, None)
+    return len(revoked)
+
+
+@app.get("/api/device")
+def device_info():
+    device = current_device()
+    return jsonify({"mode": mode(), "device": device.public() if device is not None else None,
+                    "login_required": mode() == "serial" and physical_dashboard.login_required,
+                    "console_credentials": console_credentials.available,
+                    "console_credentials_armed": console_credentials.armed})
+
+
+@app.post("/api/console/credentials")
+def console_login():
+    if mode() != "serial":
+        return jsonify({"ok": False, "error": "Disponível somente no modo serial."}), 409
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"ok": False, "error": "JSON inválido."}), 400
+    try:
+        username, password = validate_credentials(payload.get("username", ""), payload.get("password"))
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    # Memory only: never written to disk, logs or responses.
+    console_credentials.set(username, password)
+    physical_dashboard.invalidate()
+    return jsonify({"ok": True, "message": "Credenciais recebidas; o próximo ciclo de leitura fará o login no console."})
+
+
+@app.post("/api/console/credentials/confirm")
+def console_confirm():
+    """Allow one more automatic login with the credentials already in memory.
+
+    The operator confirms the console cable is still on the same switch; nothing
+    on the serial line can prove that before the password is sent."""
+    if mode() != "serial":
+        return jsonify({"ok": False, "error": "Disponível somente no modo serial."}), 409
+    if not console_credentials.confirm():
+        return jsonify({"ok": False, "error": "Não há credenciais guardadas. Informe usuário e senha."}), 409
+    physical_dashboard.invalidate()
+    return jsonify({"ok": True, "message": "Confirmado; o próximo ciclo de leitura fará o login no console."})
+
+
+@app.post("/api/console/credentials/forget")
+def console_forget():
+    console_credentials.clear()
+    return jsonify({"ok": True, "message": "Credenciais do console descartadas da memória."})
+
+
+@app.post("/api/config/capabilities/reset")
+def configuration_capabilities_reset():
+    denied = _admin_only()
+    if denied:
+        return denied
+    device = current_device()
+    if device is None:
+        return jsonify({"ok": False, "error": "Nenhum switch identificado."}), 409
+    switch_capabilities.reset(_capability_key(device))
+    return jsonify({"ok": True, "message": f"Operações recusadas por {device.model} liberadas para nova tentativa."})
 
 
 @app.get("/api/health")
@@ -680,11 +826,22 @@ def connections():
 def configuration_status():
     serial_mode = mode() in {"serial", "virtual"}
     enabled = serial_mode and config_writes_enabled()
+    device = current_device()
+    incompatible = device is not None and not device.profile.guided_config
+    adapted = device is not None and device.profile.guided_config and not device.profile.validated_writes
+    unsupported = _unsupported_actions(device)
     return jsonify({
-        "available": serial_mode,
+        "available": serial_mode and not incompatible,
         "writes_enabled": enabled,
+        "device": device.public() if device is not None else None,
+        "unsupported_actions": {action: info.get("command") for action, info in unsupported.items()},
         "message": (
             "Configuração virtual habilitada: nenhuma alteração física." if mode() == "virtual" else
+            f"{device.model}: configuração guiada indisponível para este sistema. Use a CLI."
+            if incompatible else
+            f"{device.model}: configuração guiada adaptada (modelo ainda não validado). Confira cada prévia; "
+            "operações que o switch recusar passam para a CLI."
+            if adapted and enabled else
             "A configuração por console está habilitada com prévia por operação."
             if enabled else
             "Prévia e validação disponíveis. O envio de mudanças está bloqueado por QM_ENABLE_CONFIG_WRITES=false."
@@ -704,7 +861,19 @@ def configuration_preview():
         return jsonify({"ok": False, "error": "Encerre a sessão CLI antes de preparar uma configuração."}), 409
     try:
         payload = request.get_json(silent=True)
-        plan = build_plan(payload)
+        device = current_device() or DEFAULT_DEVICE
+        if not device.profile.monitoring:
+            return jsonify({"ok": False, "error": "Switch não suportado pela configuração guiada. Use a CLI."}), 409
+        if not device.profile.guided_config:
+            return jsonify({"ok": False, "error": "Este switch não tem configuração guiada. Use a CLI."}), 409
+        action = payload.get("action") if isinstance(payload, dict) else None
+        rejected = _unsupported_actions(device).get(action) if isinstance(action, str) else None
+        if rejected:
+            return jsonify({"ok": False, "cli_only": True,
+                            "error": f"Este switch ({device.model}) recusou esta operação antes "
+                                     f"(comando \"{rejected.get('command')}\"). Faça-a pela CLI."}), 409
+        plan = build_plan(payload, inventory=device.inventory or DEFAULT_DEVICE.inventory,
+                          device_identity=device.identity_key)
         if plan.action in {"set_trunk_port", "set_hybrid_port"}:
             plan = prepare_plan(serial_settings(), plan)
         if mode() == "virtual":
@@ -716,7 +885,8 @@ def configuration_preview():
         return jsonify({
             "ok": True, "token": token, "action": plan.action,
             "summary": plan.summary, "commands": list(plan.commands),
-            "warnings": (["SIMULAÇÃO: somente o estado virtual será alterado."] + list(plan.warnings) if mode() == "virtual" else list(plan.warnings)),
+            "warnings": ((["SIMULAÇÃO: somente o estado virtual será alterado."] if mode() == "virtual" else [])
+                         + ([UNVALIDATED_WARNING] if not device.profile.validated_writes else []) + list(plan.warnings)),
             "expires_in_seconds": 300,
         })
     except ConfigurationError as exc:
@@ -729,6 +899,9 @@ def configuration_apply():
     if mode() not in {"serial", "virtual"}:
         return jsonify({"ok": False, "error": "A configuração requer o modo serial local."}), 409
     if not config_writes_enabled():
+        device = current_device()
+        if device is not None and not device.profile.guided_config:
+            return jsonify({"ok": False, "error": f"{device.model}: configuração guiada indisponível para este sistema. Use a CLI."}), 403
         return jsonify({"ok": False, "error": "Envio de mudanças está bloqueado. Habilite QM_ENABLE_CONFIG_WRITES somente após revisar a prévia e os comandos para o firmware instalado."}), 403
     if cli_session.connected:
         return jsonify({"ok": False, "error": "Encerre a sessão CLI antes de aplicar uma configuração pela área guiada."}), 409
@@ -737,10 +910,19 @@ def configuration_apply():
         if not isinstance(payload, dict): return jsonify({"ok": False, "error": "JSON inválido."}), 400
         plan = consume_preview(payload.get("token"), owner=session.get("qm_session_id"))
         if mode() == "serial": physical_dashboard.invalidate(plan)
-        outputs = execute_plan(serial_settings(), plan)
+        try:
+            outputs = execute_plan(serial_settings(), plan)
+        except CommandRejected as exc:
+            device = current_device()
+            if device is not None and exc.command in plan.commands and plan.device_identity == device.identity_key:
+                # This model does not accept the operation's syntax: CLI from now on.
+                switch_capabilities.mark_unsupported(_capability_key(device), plan.action, exc.command, device.model)
+                return jsonify({"ok": False, "cli_only": True,
+                                "error": str(exc) + f" Esta operação passou a ser feita pela CLI neste modelo ({device.model})."}), 400
+            raise
         return jsonify({
             "ok": True, "summary": plan.summary,
-            "message": "Operação aplicada ao S3900 Virtual." if mode() == "virtual" else "Operação enviada. Revise os retornos do switch; as mudanças em execução ainda podem precisar ser salvas.",
+            "message": "Operação aplicada ao switch virtual." if mode() == "virtual" else "Operação enviada. Revise os retornos do switch; as mudanças em execução ainda podem precisar ser salvas.",
             "outputs": outputs,
             **({"snapshot": virtual_snapshot()} if mode() == "virtual" else {}),
         })

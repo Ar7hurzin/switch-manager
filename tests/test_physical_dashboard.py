@@ -100,7 +100,7 @@ class PhysicalDashboardTest(unittest.TestCase):
         conn.__exit__ = Mock(return_value=False)
         fixtures = {"display version": VERSION, "display vlan": VLAN,
                     "display vlan 12": DETAIL, "display mac-address": "Total MAC addresses: 0"}
-        def read(*args):
+        def read(*args, **kwargs):  # mirrors _read_until_prompt(connection, timeout, ..., accept_login=...)
             command = conn.write.call_args.args[0].decode().strip()
             if not command:
                 return b"<Quidway>"

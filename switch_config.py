@@ -10,7 +10,9 @@ import re
 import secrets
 import time
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+
+from switch_profiles import S3900_INVENTORY, Inventory
 
 
 class ConfigurationError(ValueError):
@@ -24,6 +26,8 @@ class ConfigurationPlan:
     commands: tuple[str, ...]
     warnings: tuple[str, ...]
     expected_port_mode: str | None = None
+    # identity_key of the switch the preview was built for; the executor refuses another one.
+    device_identity: str | None = None
 
 
 def _vlan_id(value: object) -> int:
@@ -45,18 +49,14 @@ def _vlan_list(value: object, field: str = "VLANs") -> list[int]:
     return values
 
 
-def _port(value: object) -> tuple[int, str]:
+def _port(value: object, inventory: Inventory = S3900_INVENTORY) -> tuple[int, str]:
+    total = len(inventory)
     if isinstance(value, bool) or not (isinstance(value, int) or (isinstance(value, str) and re.fullmatch(r"[0-9]{1,4}", value))):
-        raise ConfigurationError("Selecione uma porta entre 1 e 28.")
-    try:
-        number = int(value)
-    except (TypeError, ValueError) as exc:
-        raise ConfigurationError("Selecione uma porta entre 1 e 28.") from exc
-    if not 1 <= number <= 28:
-        raise ConfigurationError("Este modelo tem 24 portas FE e 4 GE; use a numeração de 1 a 28.")
-    if number <= 24:
-        return number, f"Ethernet1/0/{number}"
-    return number, f"GigabitEthernet1/1/{number - 24}"
+        raise ConfigurationError(f"Selecione uma porta entre 1 e {total}.")
+    number = int(value)
+    if not 1 <= number <= total:
+        raise ConfigurationError(f"Este switch tem {total} portas ({inventory.summary()}); use a numeração de 1 a {total}.")
+    return number, inventory.name(number)
 
 
 def _safe_text(value: object, label: str, max_length: int = 31) -> str:
@@ -71,6 +71,9 @@ def _safe_text(value: object, label: str, max_length: int = 31) -> str:
 def _port_description(value: object) -> str:
     if not isinstance(value, str):
         raise ConfigurationError("Informe a descrição da porta.")
+    if any(ord(ch) < 0x20 or ord(ch) == 0x7f for ch in value):
+        # Reject (never silently rewrite) line breaks and control characters.
+        raise ConfigurationError("A descrição não pode conter quebras de linha nem caracteres de controle.")
     value = " ".join(value.strip().split())
     if not value or len(value) > 64 or not re.fullmatch(r"[A-Za-z0-9 _.-]+", value):
         raise ConfigurationError("A descrição aceita de 1 a 64 caracteres: letras, números, espaço, ponto, hífen ou sublinhado.")
@@ -87,7 +90,14 @@ def _vlan_commands(prefix: str, values: list[int], suffix: str = "") -> list[str
             for i in range(0, len(values), 10)]
 
 
-def build_plan(payload: object) -> ConfigurationPlan:
+def build_plan(payload: object, inventory: Inventory = S3900_INVENTORY,
+               device_identity: str | None = None) -> ConfigurationPlan:
+    """Typed plan for the identified switch; the port number indexes its real inventory."""
+    plan = _build_plan(payload, inventory)
+    return replace(plan, device_identity=device_identity)
+
+
+def _build_plan(payload: object, inventory: Inventory) -> ConfigurationPlan:
     if not isinstance(payload, dict):
         raise ConfigurationError("A solicitação de configuração está inválida.")
     action = payload.get("action")
@@ -121,7 +131,7 @@ def build_plan(payload: object) -> ConfigurationPlan:
         return ConfigurationPlan(action, f"Excluir VLAN {vlan}", commands, tuple(warnings))
 
     if action in {"set_access_port", "set_trunk_port", "set_hybrid_port", "set_port_description", "set_port_state"}:
-        number, interface = _port(payload.get("port"))
+        number, interface = _port(payload.get("port"), inventory)
         base = ["system-view", f"interface {interface}"]
         if action == "set_access_port":
             vlan = _vlan_id(payload.get("vlan_id"))
@@ -234,6 +244,12 @@ def issue_preview(plan: ConfigurationPlan, lifetime_seconds: int = 300, *, owner
         token = secrets.token_urlsafe(32)
         _PREVIEWS[token] = (now + lifetime_seconds, plan, owner)
         return token
+
+
+def clear_previews() -> None:
+    """Drop every pending preview (e.g. a different switch was connected)."""
+    with _PREVIEWS_LOCK:
+        _PREVIEWS.clear()
 
 
 def consume_preview(token: object, *, owner: object) -> ConfigurationPlan:

@@ -42,7 +42,12 @@ PROMPT = re.compile(rb"(?m)(?:<[^>\r\n]+>|\[[^\]\r\n]+\])\s*$")
 MORE_MARKERS = (b"---- More ----", b"More: ")
 
 
-def _read_until_prompt(connection, timeout_seconds: int, max_bytes: int = 256_000) -> bytes:
+LOGIN_PROMPT = re.compile(rb"(?i)(?:username|user name|login|password)[ \t]*:[ \t]*$")
+
+
+def _read_until_prompt(connection, timeout_seconds: int, max_bytes: int = 256_000,
+                       accept_login: bool = False) -> bytes:
+    """Read until the VRP prompt (or, with accept_login, a console login prompt)."""
     start = time.monotonic()
     data = bytearray()
     handled_more = 0
@@ -58,7 +63,9 @@ def _read_until_prompt(connection, timeout_seconds: int, max_bytes: int = 256_00
             if marker_count > handled_more:
                 connection.write(b" ")
                 handled_more = marker_count
-        elif data and PROMPT.search(bytes(data).rstrip()) and time.monotonic() - last_data >= 0.20:
+        elif (data and time.monotonic() - last_data >= 0.20
+              and (PROMPT.search(bytes(data).rstrip())
+                   or (accept_login and LOGIN_PROMPT.search(bytes(data).rstrip())))):
             return bytes(data)
         else:
             time.sleep(0.01)

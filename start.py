@@ -33,7 +33,21 @@ def main():
         if sys.argv[1] == 'configure':
             from configure_login import main as configure
             return configure()
-        print('Uso: python start.py [configure]', file=sys.stderr)
+        if sys.argv[1] == 'capture':
+            for key, value in load_settings().items():
+                os.environ.setdefault(key, value)
+            port = os.environ.get('QM_WEB_PORT', '8787')
+            try:
+                # The serial port is exclusive: never capture while the panel polls the switch.
+                with urlopen(f'http://127.0.0.1:{port}/api/health', timeout=1) as resp:
+                    if json.load(resp).get('service') == 'Quidway Manager':
+                        print('O Quidway Manager está rodando e usa a porta serial. Encerre-o (Ctrl+C) antes da captura.', file=sys.stderr)
+                        return 2
+            except (URLError, OSError, ValueError):
+                pass
+            from device_capture import main as capture
+            return capture()
+        print('Uso: python start.py [configure|capture]', file=sys.stderr)
         return 2
     for key, value in load_settings().items():
         os.environ.setdefault(key, value)

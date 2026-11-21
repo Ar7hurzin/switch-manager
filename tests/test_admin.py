@@ -55,6 +55,35 @@ class AdminRoutesTest(unittest.TestCase):
         self.assertEqual(self.post('/api/admin/access/remove', 'new@example.test').status_code, 200)
         self.assertEqual(newcomer.get('/api/status').status_code, 401)
 
+    def _copied_cookie_client(self, source):
+        copy = manager.app.test_client()
+        cookie = source.get_cookie(manager.app.config['SESSION_COOKIE_NAME'])
+        copy.set_cookie(cookie.key, cookie.value)
+        return copy
+
+    def test_removal_revokes_idle_sessions_so_readding_does_not_revive_them(self):
+        self.assertEqual(self.post('/api/admin/access', 'idle@example.test').status_code, 200)
+        user = manager.app.test_client()
+        self.assertEqual(sso_login(user, email='idle@example.test').status_code, 302)
+        stale = self._copied_cookie_client(user)
+        self.assertEqual(stale.get('/api/status').status_code, 200)
+        removed = self.post('/api/admin/access/remove', 'idle@example.test')
+        self.assertEqual(removed.get_json()['revoked_sessions'], 1)
+        self.assertEqual(self.post('/api/admin/access', 'idle@example.test').status_code, 200)
+        self.assertEqual(stale.get('/api/status').status_code, 401)
+        self.assertEqual(user.get('/api/status').status_code, 401)
+        # The administrator's own session is untouched.
+        self.assertEqual(self.admin.get('/api/status').status_code, 200)
+
+    def test_domain_removal_revokes_its_sessions(self):
+        self.assertEqual(self.post('/api/admin/access', '@corp.example.test').status_code, 200)
+        member = manager.app.test_client()
+        self.assertEqual(sso_login(member, email='someone@corp.example.test').status_code, 302)
+        stale = self._copied_cookie_client(member)
+        self.assertEqual(self.post('/api/admin/access/remove', '@corp.example.test').status_code, 200)
+        self.assertEqual(self.post('/api/admin/access', '@corp.example.test').status_code, 200)
+        self.assertEqual(stale.get('/api/status').status_code, 401)
+
     def test_domain_entry_admits_whole_domain(self):
         self.assertEqual(self.post('/api/admin/access', '@corp.example.test').status_code, 200)
         member = manager.app.test_client()

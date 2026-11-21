@@ -29,4 +29,14 @@ class SessionRegistryTest(unittest.TestCase):
             self.assertIsInstance(registry.issue('reader', 'v1', 60), str)
 
 
+    def test_revoke_where_matches_user_and_domain(self):
+        registry = SessionRegistry()
+        a = registry.issue('a@corp.test', 'v1', 60, org_domain='corp.test')
+        b = registry.issue('b@other.test', 'v1', 60)
+        gone = registry.revoke_where(lambda user, domain: domain == 'corp.test')
+        self.assertEqual(gone, [a])
+        self.assertFalse(registry.valid(a, 'a@corp.test', 'v1'))
+        self.assertTrue(registry.valid(b, 'b@other.test', 'v1'))
+
+
 if __name__ == '__main__': unittest.main()

@@ -9,6 +9,8 @@ from dataclasses import replace
 from serial_readonly import SerialReadOnlyError, SerialSettings, open_connection
 from switch_config import ConfigurationError, ConfigurationPlan
 from switch_text import decode_switch_text, command_rejected
+from switch_profiles import PHYSICAL_INTERFACE, identify
+from console_auth import open_console
 
 
 PROMPT = re.compile(rb"(?m)(?:<[^>\r\n]+>|\[[^\]\r\n]+\])\s*$")
@@ -42,19 +44,42 @@ def _read_response(connection, timeout_seconds: int, allow_confirmation: bool = 
     raise ConfigurationError("O switch não respondeu a tempo. Confira o prompt no console; não reenviei o comando.")
 
 
+class CommandRejected(ConfigurationError):
+    """The switch answered a command with a VRP syntax/feature error."""
+
+    def __init__(self, command: str, message: str | None = None):
+        super().__init__(message or f"O switch rejeitou um comando do plano: {command}. O restante não foi enviado; "
+                                    "confira a configuração em execução.")
+        self.command = command
+
+
 def _exchange(connection, command: str, settings: SerialSettings, allow_confirmation: bool = False) -> tuple[str, bool]:
     connection.write(command.encode("ascii") + b"\r")
     raw, confirmation = _read_response(connection, settings.timeout_seconds, allow_confirmation=allow_confirmation)
     text = decode_switch_text(raw).replace("\r", "").strip()
     if command_rejected(text):
-        raise ConfigurationError(f"O switch rejeitou um comando do plano: {command}. O restante não foi enviado; confira a configuração em execução.")
+        raise CommandRejected(command)
     return text, confirmation
 
 
-def _check_target(connection, settings: SerialSettings) -> str:
+def _check_target(connection, settings: SerialSettings, plan: ConfigurationPlan | None = None,
+                  require_writes: bool = False) -> str:
+    """Identify the switch on the wire before touching it.
+
+    - unsupported systems are refused;
+    - writes require a profile validated on real hardware (today: Quidway S3900-SI);
+    - a preview is only applied to the same switch type/firmware it was built for.
+    """
     response, _ = _exchange(connection, "display version", settings)
-    if "Quidway 3900-SI 28-Port" not in response or "Version 3.10(CN), RELEASE 0002" not in response:
-        raise ConfigurationError("O switch não corresponde ao perfil Quidway 3900-SI/VRP 3.10(CN) RELEASE 0002 reconhecido. Nenhuma alteração foi enviada.")
+    device = identify(response)
+    if not device.profile.monitoring:
+        raise ConfigurationError(f"Switch não suportado pela configuração guiada ({device.vendor} {device.model}): "
+                                 "use a CLI. Nenhuma alteração foi enviada.")
+    if require_writes and not device.profile.guided_config:
+        raise ConfigurationError(f"{device.model} ({device.version}) não tem configuração guiada: use a CLI. "
+                                 "Nenhuma alteração foi enviada.")
+    if plan is not None and plan.device_identity and device.identity_key != plan.device_identity:
+        raise ConfigurationError("O switch conectado não é o mesmo da prévia. Gere uma nova prévia; nenhuma alteração foi enviada.")
     return response
 
 
@@ -246,7 +271,7 @@ def _interface_vlan_sections(text: str) -> tuple[set[int], set[int]]:
 
 
 def _port_mode(text: str, interface: str) -> str:
-    headers = re.findall(r"(?mi)^[ \t]*((?:Ethernet1/0/|GigabitEthernet1/1/)[0-9]+)[ \t]+(?:current[ \t]+state[ \t]*:|is)[ \t]*", text)
+    headers = re.findall(r"(?mi)^[ \t]*" + PHYSICAL_INTERFACE.pattern + r"[ \t]+(?:current[ \t]+state[ \t]*:|is)[ \t]*", text)
     modes = re.findall(r"(?mi)^[ \t]*(?:Mdi[ \t]+type:[^\r\n]*?[ \t]+)?Port[ \t]+link-type[ \t]*:[ \t]*(access|trunk|hybrid)\b", text)
     if headers != [interface] or len(modes) != 1:
         raise ConfigurationError("Interface ou modo atual ausente/ambíguo; gere uma nova prévia após validar a leitura.")
@@ -259,10 +284,8 @@ def prepare_plan(settings: SerialSettings, plan: ConfigurationPlan) -> Configura
         return plan
     connection = _open(settings)
     try:
-        connection.reset_input_buffer()
-        connection.write(b"\r")
-        _read_response(connection, settings.timeout_seconds)
-        _check_target(connection, settings)
+        open_console(connection, settings.timeout_seconds)
+        _check_target(connection, settings, plan)
         interface = next(command.removeprefix("interface ") for command in plan.commands if command.startswith("interface "))
         text, _ = _exchange(connection, "display interface " + interface, settings)
         mode = _port_mode(text, interface)
@@ -314,7 +337,7 @@ def _verify_result(connection, settings: SerialSettings, plan: ConfigurationPlan
     def read(command):
         return _exchange(connection, command, settings)[0]
 
-    if plan.action.startswith("set_") and any(command.startswith("interface Ethernet") or command.startswith("interface Gigabit") for command in plan.commands):
+    if plan.action.startswith("set_") and any(re.fullmatch(r"interface " + PHYSICAL_INTERFACE.pattern, command) for command in plan.commands):
         interface = next(command.removeprefix("interface ") for command in plan.commands if command.startswith("interface "))
         text = read("display interface " + interface)
         mode = _port_mode(text, interface)
@@ -392,10 +415,8 @@ def execute_plan(settings: SerialSettings, plan: ConfigurationPlan) -> list[dict
     output: list[dict[str, str]] = []
     completed: list[str] = []
     try:
-        connection.reset_input_buffer()
-        connection.write(b"\r")
-        _read_response(connection, settings.timeout_seconds)
-        version = _check_target(connection, settings)
+        open_console(connection, settings.timeout_seconds)
+        version = _check_target(connection, settings, plan, require_writes=True)
         output.append({"command": "display version", "output": version})
         _verify_vlan_preconditions(connection, settings, plan)
         if plan.action in {"set_trunk_port", "set_hybrid_port"}:
@@ -422,8 +443,11 @@ def execute_plan(settings: SerialSettings, plan: ConfigurationPlan) -> list[dict
         except Exception:
             pass
         if completed:
-            raise ConfigurationError("Operação não confirmada; pode haver alterações parciais, sem rollback automático. "
-                                     "Comandos concluídos: " + "; ".join(completed) + ". " + str(exc)) from exc
+            message = ("Operação não confirmada; pode haver alterações parciais, sem rollback automático. "
+                       "Comandos concluídos: " + "; ".join(completed) + ". " + str(exc))
+            if isinstance(exc, CommandRejected):
+                raise CommandRejected(exc.command, message) from exc
+            raise ConfigurationError(message) from exc
         raise
     finally:
         connection.close()
@@ -432,9 +456,7 @@ def execute_plan(settings: SerialSettings, plan: ConfigurationPlan) -> list[dict
 def export_current_configuration(settings: SerialSettings) -> tuple[bytes, str]:
     connection = _open(settings)
     try:
-        connection.reset_input_buffer()
-        connection.write(b"\r")
-        _read_response(connection, settings.timeout_seconds)
+        open_console(connection, settings.timeout_seconds)
         version = _check_target(connection, settings)
         response, _ = _exchange(connection, "display current-configuration", settings)
         content = ("; Backup de leitura do Quidway Manager\r\n; Criado em " + datetime.now(timezone.utc).isoformat() + "\r\n; Identificação do switch:\r\n" + version + "\r\n\r\n" + response).encode("utf-8", errors="replace")

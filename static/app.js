@@ -55,6 +55,7 @@ function setMode(status) {
   $("transport-badge").textContent = isVirtual ? "VIRTUAL" : isSerial ? "CONSOLE" : "SSH";
   $("refresh").disabled = isLive && !status.ready;
   $("refresh").title = isLive && !status.ready ? status.message : "Executar leitura segura";
+  if (!isVirtual && !isSerial) fillPortSelect([]);
   if (status.mode === "demo") {
     $("device-name").textContent = "S3900 · demonstração";
     $("device-model").textContent = "Exemplo de interface · aparelho não identificado";
@@ -76,6 +77,7 @@ function setMode(status) {
     $("cli-connection-note").textContent = "Console virtual: comandos alteram somente o simulador.";
     document.querySelector(".cli-warning").textContent = "Terminal virtual: comandos alteram apenas a simulação. Envie um comando por vez.";
     loadVirtualState();
+    loadDevice();
     window.setInterval(loadVirtualState, 3000);
   } else if (isLive) {
     $("device-name").textContent = "Switch não consultado";
@@ -90,6 +92,7 @@ function setMode(status) {
     $("connection-state").querySelector("span").textContent = "Sem conexão";
     if (isSerial) {
       $("refresh").style.display = "none";
+      loadDevice();
       beginPhysicalPolling();
     }
   }
@@ -139,7 +142,7 @@ function renderPhysical(data, stale = false) {
   const rows = data.vlans?.slice().sort((a,b) => a.id - b.id) ?? null;
   const vlanPortNumbers = vlan => {
     const confirmed = [...(vlan.effective_tagged_numbers ?? vlan.tagged_numbers ?? []), ...(vlan.effective_untagged_numbers ?? vlan.untagged_numbers ?? [])];
-    const numbers = [...new Set(confirmed.map(Number).filter(n => Number.isInteger(n) && n >= 1 && n <= 28))].sort((a,b) => a-b);
+    const numbers = [...new Set(confirmed.map(Number).filter(n => Number.isInteger(n) && n >= 1))].sort((a,b) => a-b);
     return numbers.length ? numbers.join(", ") : "—";
   };
   $("vlan-body").innerHTML = rows === null ? '<tr><td colspan="4" class="table-empty">Lista não reconhecida; consulte Diagnóstico.</td></tr>' : rows.map(v => "<tr>" + [v.id,v.name ?? "—",vlanPortNumbers(v),(stale || v.stale || v.membership_stale ? "Leitura anterior · " : "Console · ") + timeLabel(v.collected_at) + (v.membership_partial ? " · membros parciais" : "")].map(x=>"<td>"+escapeHtml(x)+"</td>").join("") + "</tr>").join("");
@@ -179,6 +182,69 @@ let physicalCacheBusy = false;
 let lastPhysicalRenderKey = "";
 let lastPhysicalOutputKey = "";
 let lastPhysicalSnapshot = null;
+let currentDevice = null;
+let deviceBreadcrumb = "HUAWEI";
+
+function fillPortSelect(names) {
+  const select = $("config-port");
+  const previous = select.value;
+  const list = names.length ? names : Array.from({ length: 28 }, (_, i) => "Porta " + (i + 1));
+  select.innerHTML = list.map((name, i) => `<option value="${i + 1}">${i + 1} · ${escapeHtml(name)}</option>`).join("");
+  if (previous && Number(previous) <= list.length) select.value = previous;
+}
+
+// Adapts the whole panel to the switch identified on the console.
+function applyDevice(device, loginRequired = false, storedCredentials = false) {
+  const banner = $("device-banner");
+  $("console-login").hidden = !loginRequired;
+  // Stored credentials are never re-sent on their own: a new login prompt could
+  // come from another device on the cable, so the operator confirms first.
+  $("console-confirm").hidden = !(loginRequired && storedCredentials);
+  if (!device) {
+    banner.hidden = !loginRequired;
+    banner.className = "mode-banner";
+    banner.innerHTML = '<span class="banner-icon">!</span><span>O console do switch pede login. Informe usuário e senha abaixo.</span>';
+    if (!currentDevice) fillPortSelect([]);
+    return;
+  }
+  const changed = currentDevice && currentDevice.fingerprint !== device.fingerprint;
+  const first = !currentDevice;
+  currentDevice = device;
+  deviceBreadcrumb = escapeHtml(device.model).toUpperCase();
+  if (pageKind === "dashboard") $("page-breadcrumb").innerHTML = "SWITCHES <span>/</span> " + deviceBreadcrumb;
+  $("header-device").textContent = device.model;
+  const ports = device.ports || [];
+  $("config-scope-tag").textContent = device.model + " · " + ports.length + " portas";
+  $("config-ports-title").textContent = ports.length ? `Portas 1–${ports.length}` : "Portas";
+  $("config-ports-tag").textContent = device.port_summary || "Inventário indisponível";
+  $("system-ports-title").textContent = ports.length + " interfaces";
+  $("system-ports-summary").textContent = device.port_summary || "—";
+  $("system-profile").textContent = device.profile_label;
+  const card = $("system-page").querySelectorAll(".system-detail-card")[0];
+  card.querySelector("h2").textContent = device.model;
+  card.querySelectorAll("dd")[1].textContent = device.version;
+  fillPortSelect(ports);
+  const text = !device.guided_config
+    ? `Equipamento detectado: ${device.vendor} ${device.model} · ${device.note}`
+    : device.validated_writes
+    ? `Switch detectado: ${device.model} · ${device.version} · perfil validado (monitoramento e configuração guiada).`
+    : `Switch detectado: ${device.vendor} ${device.model} · ${device.version} · CONFIGURAÇÃO ADAPTADA: modelo ainda não validado. Confira cada prévia; operações que o switch recusar passam para a CLI.`;
+  banner.hidden = false;
+  banner.className = "mode-banner";
+  banner.classList.toggle("real", device.guided_config && device.validated_writes);
+  banner.classList.toggle("error", !device.guided_config);
+  banner.innerHTML = `<span class="banner-icon">${device.guided_config && device.validated_writes ? "✓" : "!"}</span><span>${escapeHtml((changed ? "NOVO SWITCH: " : "") + text)}</span>`;
+  // A different switch: writes availability and the port catalog changed.
+  if (changed || first) loadConfigurationStatus();
+}
+
+async function loadDevice() {
+  try {
+    const response = await fetch("/api/device", { cache: "no-store" });
+    const result = await response.json();
+    applyDevice(result.device, result.login_required, result.console_credentials);
+  } catch { /* the next dashboard poll retries */ }
+}
 
 async function loadPhysicalCache() {
   if (appStatus.mode !== "serial" || physicalCacheBusy) return;
@@ -203,6 +269,7 @@ async function loadPhysicalCache() {
       status.textContent = labels[state] || "◌ Aguardando console";
       status.title = monitor.message || "";
     }
+    applyDevice(result.device, result.login_required, result.console_credentials);
     if (result.snapshot) {
       lastPhysicalSnapshot = result.snapshot;
       const key = JSON.stringify(result.snapshot) + "|" + stale;
@@ -351,7 +418,7 @@ function syncNavigation() {
       ? ["CLI do Quidway", "GERENCIAMENTO <span>/</span> TERMINAL INTERATIVO"]
       : pageKind === "monitoring"
       ? ["Monitoramento", "SWITCHING <span>/</span> VISÃO GERAL"]
-      : ["Dashboard", "SWITCHES <span>/</span> QUIDWAY 3900-SI"];
+      : ["Dashboard", "SWITCHES <span>/</span> " + deviceBreadcrumb];
   $("page-title").textContent = page[0];
   $("page-breadcrumb").innerHTML = page[1];
 }
@@ -415,12 +482,32 @@ async function loadConfigurationStatus() {
   banner.textContent = configStatus.message;
   banner.classList.toggle("ready", configStatus.writes_enabled);
   banner.classList.toggle("locked", !configStatus.writes_enabled);
+  markCliOnlyActions(configStatus.unsupported_actions || {});
   updateConfigurationControls();
+}
+
+// Operations this switch model rejected are done through the CLI instead.
+function markCliOnlyActions(unsupported) {
+  document.querySelectorAll('select[name="action"] option').forEach(option => {
+    if (!option.dataset.label) option.dataset.label = option.textContent;
+    const rejected = Object.prototype.hasOwnProperty.call(unsupported, option.value);
+    option.disabled = rejected;
+    option.textContent = option.dataset.label + (rejected ? " (use a CLI)" : "");
+    option.title = rejected ? "O switch recusou: " + unsupported[option.value] : "";
+  });
+  document.querySelectorAll('select[name="action"]').forEach(select => {
+    if (select.selectedOptions[0]?.disabled) {
+      const usable = [...select.options].find(option => !option.disabled);
+      if (usable) select.value = usable.value;
+    }
+  });
+  const save = $("save-config-button");
+  if (save) save.dataset.cliOnly = Object.prototype.hasOwnProperty.call(unsupported, "save") ? "1" : "";
 }
 
 function updateConfigurationControls() {
   $("backup-button").disabled = configApplying || !configStatus.available;
-  $("save-config-button").disabled = configApplying || !configStatus.available;
+  $("save-config-button").disabled = configApplying || !configStatus.available || $("save-config-button").dataset.cliOnly === "1";
   for (const id of ["vlan-form", "port-form", "system-form", "route-form"]) {
     const form = $(id);
     form.querySelector('button[type="submit"]').disabled = configApplying || !configStatus.available;
@@ -626,6 +713,7 @@ $("apply-config-button").addEventListener("click", async () => {
       }), cache: "no-store",
     });
     const result = await response.json();
+    if (result.cli_only) loadConfigurationStatus();  // marks the operation "(use a CLI)"
     if (!response.ok || !result.ok) throw new Error(result.error || "O switch não aceitou a operação.");
     pendingConfigPreview = null;
     resultBox.textContent = result.message;
@@ -854,4 +942,52 @@ window.addEventListener("pagehide", () => {
 });
 window.addEventListener("pageshow", () => {
   if (appStatus.mode !== "demo" && (pageKind === "cli" || cliToken)) loadCliStatus();
+});
+
+// Console login for switches that ask for credentials. The password is sent once
+// and the field is cleared; nothing is kept in the browser (no storage, no autofill).
+function showConsoleLoginMessage(text, error = false) {
+  const message = $("console-login-message");
+  message.textContent = text;
+  message.classList.toggle("error", error);
+}
+
+$("console-login-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const body = JSON.stringify({ username: form.username.value, password: form.password.value });
+  form.password.value = "";
+  try {
+    const response = await fetch("/api/console/credentials", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body, cache: "no-store",
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "Não foi possível enviar as credenciais.");
+    showConsoleLoginMessage(result.message);
+    loadPhysicalCache();
+  } catch (error) {
+    showConsoleLoginMessage(error.message, true);
+  }
+});
+
+$("console-confirm").addEventListener("click", async () => {
+  try {
+    const response = await fetch("/api/console/credentials/confirm", { method: "POST", cache: "no-store" });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "Não foi possível confirmar.");
+    showConsoleLoginMessage(result.message);
+    loadPhysicalCache();
+  } catch (error) {
+    showConsoleLoginMessage(error.message, true);
+  }
+});
+
+$("console-forget").addEventListener("click", async () => {
+  try {
+    const response = await fetch("/api/console/credentials/forget", { method: "POST", cache: "no-store" });
+    const result = await response.json();
+    showConsoleLoginMessage(result.message || "Credenciais descartadas.");
+  } catch (error) {
+    showConsoleLoginMessage(error.message, true);
+  }
 });

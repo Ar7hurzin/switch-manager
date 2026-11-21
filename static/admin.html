@@ -5,14 +5,29 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="{{ csrf_token }}">
   <title>Administração · Quidway Manager</title>
-  <link rel="stylesheet" href="/static/styles.css?v=20261117-reliability-1">
+  <link rel="stylesheet" href="/static/styles.css?v=20261121-nav-1">
   <link rel="stylesheet" href="/static/admin.css?v=2">
 </head>
 <body>
+  <div class="frame">
+    <aside class="sidebar">
+      <a class="brand" href="/" aria-label="Quidway Manager — voltar ao Dashboard"><span class="brand-mark">Q</span><div><strong>Quidway Manager</strong></div></a>
+      <nav class="main-nav" aria-label="Navegação principal">
+        <a class="nav-item" href="/"><span>◈</span>Dashboard</a>
+        <a class="nav-item" href="/configuracao#configuration"><span>⚙</span>Configuração</a>
+        <a class="nav-item" href="/monitoramento#ports"><span>▦</span>Switching</a>
+        <a class="nav-item" href="/cli"><span>⌨</span>CLI</a>
+        <a class="nav-item" href="/sistema"><span>▤</span>Sistema</a>
+        <div class="nav-end">
+          <a class="nav-item active" href="/admin" aria-current="page"><span>⚑</span>Administração</a>
+          <form action="/logout" method="post" class="logout-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="nav-item" type="submit"><span>⇥</span>Sair</button></form>
+        </div>
+      </nav>
+    </aside>
+
   <main class="main admin-main">
     <header class="topbar">
       <div><div class="eyebrow">QUIDWAY MANAGER <span>/</span> ADMINISTRAÇÃO</div><h1>Quem pode acessar</h1></div>
-      <div class="top-actions"><a class="button button-secondary" href="/">← Voltar ao painel</a><form action="/logout" method="post" class="logout-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button button-secondary" type="submit">Sair</button></form></div>
     </header>
 
     <section class="card admin-card">
@@ -47,6 +62,7 @@
       </table></div>
     </section>
   </main>
+  </div>
   <script src="/static/admin.js?v=2" defer></script>
 </body>
 </html>
