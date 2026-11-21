@@ -102,6 +102,21 @@ def parse_brief(text, inventory=S3900_INVENTORY):
     return result
 
 
+# Link-change log lines the switch prints on the console by itself, e.g.
+# "%... L2INF/5/PORT LINK STATUS CHANGE:- 1 - Ethernet1/0/1 is UP" or
+# "... IFNET/5/UPDOWN: Line protocol on the interface Ethernet1/0/1 is DOWN".
+LINK_EVENT = re.compile(
+    r"(?i)(?:PORT[ \t]+LINK[ \t]+STATUS[ \t]+CHANGE|Line[ \t]+protocol[ \t]+on[ \t]+the[ \t]+interface|/UPDOWN\b)"
+    r"[^\n]*?" + PHYSICAL_INTERFACE.pattern)
+
+
+def link_events(text, inventory=S3900_INVENTORY):
+    """Ports named in unsolicited link-change messages; only known ports count."""
+    found = {inventory.number(m[1]) for m in LINK_EVENT.finditer(terminal_text(text))}
+    found.discard(None)
+    return found
+
+
 def _vlan_member_sections(text, inventory=S3900_INVENTORY):
     """Parse VRP multiline VLAN member lists, without guessing damaged port IDs."""
     recognized = {}
@@ -301,6 +316,9 @@ class PhysicalDashboard:
         self.prompt = None
         self.identity_checked = 0.0
         self.login_required = False
+        # Command that lists the state of every port at once; None = not probed yet,
+        # False = this switch rejects both forms.
+        self.brief_command = None
 
     def invalidate(self, plan=None):
         with self._lock:
@@ -404,6 +422,7 @@ class PhysicalDashboard:
             raw = _read_until_prompt(connection, min(settings.timeout_seconds, 10, remaining))
             output = _clean_output(raw, command)
             outputs.append({"command": command, "output": output})
+            self.priority_ports.update(link_events(output, self.inventory))
             return output
 
         def publish():
@@ -473,6 +492,36 @@ class PhysicalDashboard:
             if new.get("pvid") and not any(row["id"] == new["pvid"] for row in data.get("vlans") or []):
                 # A port hint schedules a query; it never creates a VLAN row.
                 self.priority_vlans.add(new["pvid"])
+
+        def refresh_link_states(connection):
+            """Link state of every port in one short query, on every poll."""
+            candidates = ([self.brief_command] if self.brief_command
+                          else ["display brief interface", "display interface brief"])
+            for command in candidates:
+                text = query(connection, command)
+                states = None if command_rejected(text) else parse_brief(text, self.inventory)
+                if states:
+                    self.brief_command = command
+                    break
+            else:
+                if self.brief_command is None:
+                    self.brief_command = False  # fall back to per-port reads only
+                else:
+                    fail("Estado resumido das portas não reconhecido; leituras anteriores preservadas.")
+                return
+            stamp = observe()
+            for number, new in states.items():
+                port = data["ports"][number - 1]
+                if port.get("state") is not None and port["state"] != new["state"]:
+                    self.priority_ports.add(number)  # details (speed, VLANs) change with the link
+                port["state"] = new["state"]
+                port["admin"] = new["admin"] if new["admin"] is not None else (True if new["state"] == "up" else port.get("admin"))
+                observed = port.setdefault("field_observed_at", {})
+                observed["state"] = stamp
+                if new["admin"] is not None or new["state"] == "up":
+                    observed["admin"] = stamp
+                port["link_at"] = stamp
+            data["link_states_at"] = stamp
 
         def refresh_vlan_detail(connection, vlan):
             for row in data.get("vlans") or []:
@@ -586,6 +635,7 @@ class PhysicalDashboard:
                     self.settings_key = key
                     data = fresh()
                 self.prompt = name or self.prompt
+                self.priority_ports.update(link_events(decode_switch_text(wake), self.inventory))
                 if (data.get("identity_verified") and self.device is not None
                         and time.monotonic() - self.identity_checked >= IDENTITY_RECHECK_SECONDS):
                     current = identify(query(connection, "display version"))
@@ -611,6 +661,8 @@ class PhysicalDashboard:
                     # normal round-robin so repeated edits cannot starve others.
                     stage = self.stage
                     self.stage += 1
+                    if self.brief_command is not False:
+                        refresh_link_states(connection)
                     if self.priority_ports and stage % 2:
                         number = min(self.priority_ports)
                         self.priority_ports.discard(number)

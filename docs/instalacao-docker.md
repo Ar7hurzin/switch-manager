@@ -145,7 +145,7 @@ No PowerShell, substitua cada redirecionamento de entrada por `Get-Content -Raw 
 
 ## 9. Acesso remoto privado
 
-Instale Tailscale no **host** que executa o Manager e no dispositivo cliente. Autentique ambos na tailnet autorizada. Com o painel funcionando localmente, publique via `tailscale serve --bg 8787` (ou a porta escolhida no host). Use `tailscale serve status` para obter o URL HTTPS. Não use Funnel nem encaminhamento público de portas. O PC/servidor precisa continuar ligado. Mantenha o app preso ao loopback. Caso seu uso seja exclusivamente HTTPS, `QM_HTTPS_ONLY=true` habilita cookies Secure; no HTTP local essa opção impede a sessão, por isso permanece desligada no padrão. O limite de login por origem pode ser compartilhado entre usuários atrás de um proxy.
+Instale Tailscale no **host** que executa o Manager e no dispositivo cliente. Autentique ambos na tailnet autorizada. Com o painel funcionando localmente, publique via `tailscale serve --bg 8787` (ou a porta escolhida no host). Use `tailscale serve status` para obter o URL HTTPS. Não use Funnel nem encaminhamento público de portas. O PC/servidor precisa continuar ligado. Mantenha o app preso ao loopback. Pelo endereço HTTPS da tailnet o cookie de sessão já sai com `Secure` automaticamente. Caso seu uso seja exclusivamente HTTPS, `QM_HTTPS_ONLY=true` força `Secure` também nos demais acessos; no HTTP local essa opção impede a sessão, por isso permanece desligada no padrão. O limite de login por origem pode ser compartilhado entre usuários atrás de um proxy.
 
 ## 10. Testes e limites desta versão
 

@@ -64,15 +64,21 @@ function setMode(status) {
     renderDemo();
   } else if (isVirtual) {
     $("ssh-message").textContent = "Console virtual isolado; não acessa hardware.";
-    $("ports-note").textContent = "28 interfaces simuladas. UP indica link virtual e porta habilitada.";
+    $("ports-note").textContent = "Interfaces simuladas. UP indica link virtual e porta habilitada.";
     $("system-page").querySelector(".subtle-tag").textContent = "Simulação";
     $("system-page").querySelector(".system-note").textContent = "Perfil simulado; não executa firmware Huawei original.";
-    $("system-page").querySelectorAll(".system-detail-card")[0].innerHTML = '<div class="card-overline">PERFIL VIRTUAL</div><h2>Quidway 3900-SI</h2><p>VRP 3.10(CN) RELEASE 0002 · respostas simuladas.</p>';
-    $("system-page").querySelectorAll(".system-detail-card")[1].innerHTML = '<div class="card-overline">HARDWARE</div><h2>Modelo lógico</h2><p>Sem emulação de CPU, memória ou ASIC.</p>';
-    $("system-page").querySelectorAll(".system-detail-card")[2].innerHTML = '<div class="card-overline">PORTAS VIRTUAIS</div><h2>28 interfaces</h2><p>24 Fast Ethernet e 4 Gigabit Ethernet simuladas.</p>';
-    $("system-page").querySelectorAll(".system-detail-card")[5].innerHTML = '<div class="card-overline">VALIDAÇÃO</div><h2>Laboratório virtual</h2><p>Teste de comandos, não confirmação de compatibilidade física.</p>';
-    $("system-page").querySelectorAll(".system-detail-card")[3].innerHTML = '<div class="card-overline">CONSOLE VIRTUAL</div><h2>S3900 Virtual</h2><p>Nenhuma porta COM ou SSH física utilizada.</p><p id="system-read-state">Aguardando leitura</p>';
-    $("system-page").querySelectorAll(".system-detail-card")[4].innerHTML = '<div class="card-overline">ISOLAMENTO</div><h2>Sem conexão física</h2><p>O transporte virtual não utiliza SSH nem a rede do laboratório.</p>';
+    // Only texts change: the cards keep the elements applyDevice fills in.
+    $("system-model-overline").textContent = "PERFIL VIRTUAL";
+    $("system-hardware-title").textContent = "Modelo lógico";
+    $("system-hardware").textContent = "Sem emulação de CPU, memória ou ASIC";
+    $("system-cpld").textContent = "—";
+    $("system-bootrom").textContent = "—";
+    $("system-console-overline").textContent = "CONSOLE VIRTUAL";
+    $("system-console").textContent = "Simulador";
+    $("system-console-config").textContent = "QM_VIRTUAL_MODEL";
+    $("system-read-state").textContent = "Aguardando leitura";
+    $("system-transport").textContent = "Nenhuma porta COM ou SSH física utilizada";
+    $("system-access").textContent = "Simulação sem conexão física";
     $("switch-connections-note").textContent = "Links virtuais não representam dispositivos físicos.";
     $("cli-connection-note").textContent = "Console virtual: comandos alteram somente o simulador.";
     document.querySelector(".cli-warning").textContent = "Terminal virtual: comandos alteram apenas a simulação. Envie um comando por vez.";
@@ -168,11 +174,12 @@ function renderPhysical(data, stale = false) {
   const traffic = ports.filter(p => p.rx_bps != null || p.tx_bps != null);
   $("traffic-placeholder").hidden = traffic.length > 0;
   $("physical-traffic").innerHTML = traffic.length ? '<p class="panel-note">Amostras do próprio switch; cada porta tem seu horário de coleta.</p><div class="table-wrap"><table><thead><tr><th>Porta</th><th>Entrada (bit/s)</th><th>Saída (bit/s)</th><th>Coleta</th></tr></thead><tbody>' + traffic.map(p=>"<tr>" + [p.number,fieldLabel(p, "rx_bps"),fieldLabel(p, "tx_bps"),"Entrada: " + timeLabel(observedAt(p, "rx_bps")) + " · Saída: " + timeLabel(observedAt(p, "tx_bps"))].map(v=>"<td>"+escapeHtml(v)+"</td>").join("") + "</tr>").join("") + '</tbody></table></div>' : "";
-  const cards = $("system-page").querySelectorAll(".system-detail-card");
-  cards[0].querySelector("h2").textContent = data.model;
-  cards[0].querySelectorAll("dd")[1].textContent = data.version;
-  [data.hardware, data.cpld, data.bootrom].forEach((v,i) => cards[1].querySelectorAll("dd")[i].textContent = v || "—");
-  cards[3].querySelector("h2").textContent = data.port + " · " + data.baud_rate + " baud";
+  $("system-model").textContent = data.model;
+  $("system-version").textContent = data.version;
+  $("system-hardware").textContent = data.hardware || "—";
+  $("system-cpld").textContent = data.cpld || "—";
+  $("system-bootrom").textContent = data.bootrom || "—";
+  $("system-console").textContent = data.port + " · " + data.baud_rate + " baud";
   text("system-read-state", stale ? "Leitura anterior" : "Consultado às " + new Date(data.collected_at).toLocaleTimeString("pt-BR"));
   $("system-page").querySelector(".system-note").textContent = "Identificação e dados lidos pelo console. Consulte o mapa para informações de cada porta.";
   $("system-page").querySelector(".subtle-tag").textContent = stale ? "Leitura anterior" : "Leitura real";
@@ -188,8 +195,9 @@ let deviceBreadcrumb = "HUAWEI";
 function fillPortSelect(names) {
   const select = $("config-port");
   const previous = select.value;
-  const list = names.length ? names : Array.from({ length: 28 }, (_, i) => "Porta " + (i + 1));
-  select.innerHTML = list.map((name, i) => `<option value="${i + 1}">${i + 1} · ${escapeHtml(name)}</option>`).join("");
+  const list = names.length ? names : Array.from({ length: 28 }, () => "");
+  // "Porta 3 · Ethernet1/0/3" when the interface name is known, otherwise just "Porta 3".
+  select.innerHTML = list.map((name, i) => `<option value="${i + 1}">Porta ${i + 1}${name ? " · " + escapeHtml(name) : ""}</option>`).join("");
   if (previous && Number(previous) <= list.length) select.value = previous;
 }
 
@@ -220,9 +228,13 @@ function applyDevice(device, loginRequired = false, storedCredentials = false) {
   $("system-ports-title").textContent = ports.length + " interfaces";
   $("system-ports-summary").textContent = device.port_summary || "—";
   $("system-profile").textContent = device.profile_label;
-  const card = $("system-page").querySelectorAll(".system-detail-card")[0];
-  card.querySelector("h2").textContent = device.model;
-  card.querySelectorAll("dd")[1].textContent = device.version;
+  $("system-model").textContent = device.model;
+  $("system-vendor").textContent = device.vendor;
+  $("system-version").textContent = device.version;
+  $("system-validation").textContent = device.profile_label;
+  $("system-writes").textContent = !device.guided_config ? "Indisponíveis · use a CLI"
+    : device.validated_writes ? "Validadas neste modelo" : "Adaptadas · modelo ainda não validado";
+  if (appStatus.mode === "virtual") $("ports-note").textContent = ports.length + " interfaces simuladas. UP indica link virtual e porta habilitada.";
   fillPortSelect(ports);
   const text = !device.guided_config
     ? `Equipamento detectado: ${device.vendor} ${device.model} · ${device.note}`

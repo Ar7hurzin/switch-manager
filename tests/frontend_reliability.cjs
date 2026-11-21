@@ -342,3 +342,29 @@ test('old CLI status cannot resurrect a closed session', async () => {
   assert.equal(ui.run('cliConnected'), false);
   assert.equal(ui.run('cliOccupiedElsewhere'), false);
 });
+
+test('every element the script looks up by id exists and system cards are never rebuilt', () => {
+  const js = fs.readFileSync(path.join(__dirname, '../static/app.js'), 'utf8');
+  const html = fs.readFileSync(path.join(__dirname, '../static/index.html'), 'utf8');
+  const present = new Set([...html.matchAll(/id="([^"]+)"/g)].map(m => m[1]));
+  const missing = [...new Set([...js.matchAll(/\$\("([^"]+)"\)/g)].map(m => m[1]))].filter(id => !present.has(id));
+  assert.deepEqual(missing, []);
+  // Replacing a card's innerHTML removes the ids applyDevice fills (port list included).
+  assert.doesNotMatch(js, /system-detail-card"\)\[\d\]\.innerHTML/);
+});
+
+test('detected device fills the port list with real interface names and the system page', () => {
+  const ui = browser();
+  ui.run('appStatus = {mode: "virtual", ready: true}');
+  ui.run(`applyDevice({vendor: "Huawei", model: "Quidway S3026C", version: "VRP 3.10 Release 0035",
+    profile_label: "VRP 3 legado", validated_writes: false, guided_config: true, monitoring: true,
+    ports: ["Ethernet0/1", "Ethernet0/2", "GigabitEthernet1/1"], port_summary: "2 FE · 1 GE", fingerprint: "a"})`);
+  const options = ui.element('config-port').innerHTML;
+  assert.match(options, /value="1">Porta 1 · Ethernet0\/1</);
+  assert.match(options, /value="3">Porta 3 · GigabitEthernet1\/1</);
+  ui.run("fillPortSelect([])");
+  assert.match(ui.element('config-port').innerHTML, /value="1">Porta 1</);
+  assert.equal(ui.element('system-model').textContent, 'Quidway S3026C');
+  assert.equal(ui.element('system-writes').textContent, 'Adaptadas · modelo ainda não validado');
+  assert.equal(ui.element('ports-note').textContent.startsWith('3 interfaces simuladas'), true);
+});

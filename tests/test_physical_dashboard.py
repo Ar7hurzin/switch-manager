@@ -2,7 +2,7 @@
 import unittest
 from unittest.mock import patch, Mock
 from datetime import datetime, timedelta, timezone
-from physical_dashboard import (PhysicalDashboard, parse_identity, parse_port,
+from physical_dashboard import (PhysicalDashboard, link_events, parse_identity, parse_port,
                                 parse_brief, parse_vlan_detail, parse_mac_table,
                                 reconcile_vlan_members)
 from serial_config import _parse_vlan_inventory
@@ -99,7 +99,10 @@ class PhysicalDashboardTest(unittest.TestCase):
         conn.__enter__ = Mock(return_value=conn)
         conn.__exit__ = Mock(return_value=False)
         fixtures = {"display version": VERSION, "display vlan": VLAN,
-                    "display vlan 12": DETAIL, "display mac-address": "Total MAC addresses: 0"}
+                    "display vlan 12": DETAIL, "display mac-address": "Total MAC addresses: 0",
+                    # Most tests exercise the per-port rotation alone; the one-shot
+                    # state table has its own tests below.
+                    "display brief interface": "% Unrecognized command found at '^' position."}
         def read(*args, **kwargs):  # mirrors _read_until_prompt(connection, timeout, ..., accept_login=...)
             command = conn.write.call_args.args[0].decode().strip()
             if not command:
@@ -120,6 +123,48 @@ class PhysicalDashboardTest(unittest.TestCase):
         self.addCleanup(opened.stop); self.addCleanup(reader.stop)
         return dashboard, conn, fixtures, SerialSettings("fake", 9600, 3)
 
+    def test_every_poll_reads_the_link_state_of_all_ports(self):
+        d, conn, fixtures, settings = self.make_collector()
+        brief = "\n".join(f"Ethernet1/0/{n} {'UP' if n % 2 else 'DOWN'} 100M" for n in range(1, 25))
+        fixtures["display brief interface"] = "Interface Link Speed\n" + brief
+        d.collect(settings)          # identification
+        result = d.collect(settings, force=True)
+        ports = result["snapshot"]["ports"]
+        self.assertEqual([p["state"] for p in ports[:24]], ["up" if n % 2 else "down" for n in range(1, 25)])
+        self.assertIsNotNone(result["snapshot"]["link_states_at"])
+        # A link that changes is read in detail on the next polls.
+        fixtures["display brief interface"] = fixtures["display brief interface"].replace("Ethernet1/0/7 UP", "Ethernet1/0/7 DOWN")
+        fixtures["display interface Ethernet1/0/7"] = PORT.replace("Ethernet1/0/1 current state : UP", "Ethernet1/0/7 current state : DOWN")
+        before = conn.write.call_count
+        d.collect(settings, force=True)
+        d.collect(settings, force=True)
+        self.assertEqual(d.cached()["snapshot"]["ports"][6]["state"], "down")
+        queried = [c.args[0] for c in conn.write.call_args_list]
+        self.assertIn(b"display interface Ethernet1/0/7\r", queried[before:])
+        self.assertNotIn(b"display interface brief\r", queried)  # the working form is remembered
+
+    def test_switch_without_state_table_keeps_per_port_rotation(self):
+        d, conn, fixtures, settings = self.make_collector()
+        for _ in range(4):
+            d.collect(settings, force=True)
+        queried = [c.args[0] for c in conn.write.call_args_list]
+        self.assertEqual(queried.count(b"display brief interface\r"), 1)  # probed once, then skipped
+        self.assertIs(d.brief_command, False)
+
+    def test_link_change_message_on_console_prioritizes_that_port(self):
+        self.assertEqual(link_events("%Apr  2 00:12:10 2000 Quidway L2INF/5/PORT LINK STATUS CHANGE:- 1 -\n"
+                                     " Ethernet1/0/5 is DOWN"), set())  # name must be on the same line
+        self.assertEqual(link_events("%Apr  2 00:12:10 2000 Quidway L2INF/5/PORT LINK STATUS CHANGE:- 1 - Ethernet1/0/5 is DOWN\n"
+                                     "#Apr  2 00:12:11 2000 Quidway IFNET/5/UPDOWN: Line protocol on the interface GigabitEthernet1/1/2 is UP\n"
+                                     "Description: Ethernet1/0/9 is UP"), {5, 26})
+        d, conn, fixtures, settings = self.make_collector()
+        d.collect(settings)
+        fixtures["display vlan"] = VLAN.replace("<Quidway>", "%Apr  2 00:12:10 2000 Quidway L2INF/5/PORT LINK STATUS CHANGE:- 1 - Ethernet1/0/9 is UP\n<Quidway>")
+        for _ in range(4):
+            d.collect(settings, force=True)
+        queried = [c.args[0] for c in conn.write.call_args_list]
+        self.assertIn(b"display interface Ethernet1/0/9\r", queried)
+
     def test_read_only_cache_and_fair_ports(self):
         d, conn, fixtures, settings = self.make_collector()
         first = d.collect(settings)
@@ -131,7 +176,7 @@ class PhysicalDashboardTest(unittest.TestCase):
             result = d.collect(settings, force=True)
         self.assertTrue(all(p["state"] == "up" for p in result["snapshot"]["ports"]))
         queried = [c.args[0] for c in conn.write.call_args_list]
-        self.assertEqual(len([q for q in queried if q.startswith(b"display interface ")]), 28)
+        self.assertEqual(len([q for q in queried if q.startswith(b"display interface ") and q != b"display interface brief\r"]), 28)
         self.assertTrue(all(q == b"\r" or q.startswith(b"display ") for q in queried))
         d.invalidate()
         self.assertTrue(d.cached()["stale"])

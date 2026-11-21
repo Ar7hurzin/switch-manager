@@ -212,6 +212,12 @@ class SerialCLISession:
             self._idle_timer = None
         if connection:
             try:
+                # Leave the console in the user view: a physical switch keeps the
+                # current view after the port closes, and guided plans start there.
+                connection.write(b"return\r")
+            except Exception:
+                pass
+            try:
                 connection.close()
             except Exception:
                 pass

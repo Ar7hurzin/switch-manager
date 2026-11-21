@@ -74,12 +74,12 @@
         <div class="section-heading"><div><div class="card-overline">EQUIPAMENTO</div><h2>Informações do sistema</h2></div><span class="subtle-tag">Identificação anterior</span></div>
         <p class="panel-note system-note">Dados observados anteriormente no console. “Atualizar leitura” executa consultas fixas; as respostas aparecem no painel de Diagnóstico em Switching e não alteram automaticamente estes cartões.</p>
         <div class="system-grid">
-          <article class="card system-detail-card"><div class="card-overline">MODELO E SOFTWARE</div><h2>Aguardando identificação</h2><dl><dt>Plataforma</dt><dd>VRP (R) Software</dd><dt>Versão</dt><dd>—</dd></dl></article>
-          <article class="card system-detail-card"><div class="card-overline">HARDWARE</div><h2>Revisões do equipamento</h2><dl><dt>Hardware</dt><dd>SI_REV.C</dd><dt>CPLD</dt><dd>001</dd><dt>Boot ROM</dt><dd>213</dd></dl></article>
+          <article class="card system-detail-card"><div id="system-model-overline" class="card-overline">MODELO E SOFTWARE</div><h2 id="system-model">Aguardando identificação</h2><dl><dt>Fabricante</dt><dd id="system-vendor">—</dd><dt>Versão</dt><dd id="system-version">—</dd></dl></article>
+          <article class="card system-detail-card"><div class="card-overline">HARDWARE</div><h2 id="system-hardware-title">Revisões do equipamento</h2><dl><dt>Hardware</dt><dd id="system-hardware">—</dd><dt>CPLD</dt><dd id="system-cpld">—</dd><dt>Boot ROM</dt><dd id="system-bootrom">—</dd></dl></article>
           <article class="card system-detail-card"><div class="card-overline">PORTAS FÍSICAS</div><h2 id="system-ports-title">—</h2><dl><dt>Tipos</dt><dd id="system-ports-summary">Aguardando identificação</dd><dt>Perfil</dt><dd id="system-profile">—</dd></dl></article>
-          <article class="card system-detail-card"><div class="card-overline">CONSOLE LOCAL</div><h2>COM9 · 9600 baud</h2><dl><dt>Configuração</dt><dd>local-settings.ps1</dd><dt>Estado nesta sessão</dt><dd id="system-read-state">Ainda não consultado</dd><dt>Transporte</dt><dd>Serial · leitura disponível</dd></dl></article>
-          <article class="card system-detail-card"><div class="card-overline">ACESSO SSH</div><h2>Versão reportada: 1.5</h2><dl><dt>Manager</dt><dd>Não usa SSH 1.5</dd><dt>Acesso atual</dt><dd>Console serial local</dd></dl><p class="panel-note">O Manager não reduz as proteções SSH do computador para negociar uma versão antiga.</p></article>
-          <article class="card system-detail-card"><div class="card-overline">VALIDAÇÃO</div><h2>Leituras confirmadas</h2><dl><dt>display version</dt><dd>Executado anteriormente</dd><dt>display vlan</dt><dd>Executado anteriormente</dd><dt>Gravações de configuração</dt><dd>Não validadas</dd></dl></article>
+          <article class="card system-detail-card"><div id="system-console-overline" class="card-overline">CONSOLE LOCAL</div><h2 id="system-console">Console serial</h2><dl><dt>Configuração</dt><dd id="system-console-config">local-settings.ps1</dd><dt>Estado nesta sessão</dt><dd id="system-read-state">Ainda não consultado</dd><dt>Transporte</dt><dd id="system-transport">Serial · leitura disponível</dd></dl></article>
+          <article class="card system-detail-card"><div class="card-overline">ACESSO SSH</div><h2>Não utilizado pelo Manager</h2><dl><dt>Acesso atual</dt><dd id="system-access">Console serial local</dd></dl><p class="panel-note">Switches VRP 3 costumam oferecer só SSH 1.5. O Manager não reduz as proteções SSH do computador para negociar uma versão antiga.</p></article>
+          <article class="card system-detail-card"><div class="card-overline">VALIDAÇÃO</div><h2>Configuração guiada</h2><dl><dt>Perfil do modelo</dt><dd id="system-validation">Aguardando identificação</dd><dt>Gravações</dt><dd id="system-writes">—</dd></dl></article>
         </div>
       </section>
 
@@ -219,6 +219,6 @@
       </section>
     </main>
   </div>
-  <script src="/static/app.js?v=20261121-device-1" defer></script>
+  <script src="/static/app.js?v=20261121-realtime-2" defer></script>
 </body>
 </html>

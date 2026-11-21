@@ -27,6 +27,19 @@ A prévia mostra o aviso "modelo ainda não validado".
 
 **Atenção:** os comandos anteriores ao recusado já terão sido aplicados, e não há desfazer automático. Exemplo: num trunk, as VLANs antigas são removidas antes de a nova lista ser aplicada. Teste cada operação primeiro num switch de laboratório.
 
+Antes de cada operação, se o console estiver numa sub-visão (por exemplo `[Switch-vlan40]`, deixada por uma CLI fechada), o Manager envia `return` e só continua na visão de usuário. Assim uma recusa de `system-view` por estar na visão errada não marca a operação como "use a CLI". Fechar a CLI também envia `return`.
+
+## Leitura automática
+
+A cada rodada (cerca de 4 segundos mais o tempo do console), o monitoramento:
+- lê o **estado de link de todas as portas** numa consulta curta (`display brief interface` ou `display interface brief`, a que o switch aceitar). Se o switch não tiver nenhuma das duas, volta à leitura de uma porta por rodada;
+- lê **uma porta em detalhe** (modo, PVID, VLANs e tráfego) em rodízio; uma porta cujo link mudou passa na frente;
+- faz uma tarefa extra em rodízio: inventário de VLANs, uma VLAN em detalhe ou a tabela MAC (no máximo uma vez por minuto).
+
+Mensagens de mudança de link que o switch escreve sozinho no console (`PORT LINK STATUS CHANGE`, `Line protocol on the interface ... is UP/DOWN`) também colocam a porta citada na frente da fila.
+
+A 9600 baud o console transmite cerca de 960 bytes por segundo, e isso limita a velocidade. Subir o console do switch para 115200 baud (`user-interface aux 0` → `speed 115200`, e o mesmo valor em `QM_SERIAL_BAUD`) deixa tudo bem mais rápido. Só faça isso com acesso físico ao switch: se os dois lados ficarem diferentes, o console para de responder até alguém acertar.
+
 ## Troca de switch
 
 O painel percebe a troca de duas formas:

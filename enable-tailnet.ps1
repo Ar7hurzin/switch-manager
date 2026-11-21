@@ -28,5 +28,6 @@ if ($result -match 'Serve is not enabled on your tailnet') {
 }
 if ($LASTEXITCODE -ne 0) { throw 'O Tailscale não conseguiu configurar o acesso privado.' }
 
+Write-Host 'Pelo endereço HTTPS da tailnet o cookie de sessão é emitido com Secure automaticamente.'
 Write-Host "`nConfiguração atual do Tailscale Serve:" -ForegroundColor Cyan
 & $tailscale serve status

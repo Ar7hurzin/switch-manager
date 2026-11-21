@@ -28,6 +28,14 @@ class ManagerTest(unittest.TestCase):
     def test_protected_pages_and_api(self):
         self.assertEqual(self.client.get('/').status_code,302)
         self.assertEqual(self.client.get('/api/status').status_code,401)
+    def test_session_cookie_is_secure_when_served_over_https(self):
+        def cookie(**kwargs):
+            headers = manager.app.test_client().get('/login', **kwargs).headers.getlist('Set-Cookie')
+            return next(h for h in headers if h.startswith(manager.app.config['SESSION_COOKIE_NAME'] + '='))
+        self.assertNotIn('Secure', cookie())  # plain local HTTP keeps working
+        self.assertIn('Secure', cookie(base_url='http://qm.example-tailnet.ts.net'))  # Tailscale Serve
+        self.assertIn('Secure', cookie(base_url='https://manager.example.test'))
+        self.assertIn('Secure', cookie(headers={'X-Forwarded-Proto': 'https'}))
     def test_login_and_pages(self):
         page=self.client.get('/login'); self.assertIn(b'sso-login',page.data); self.assertNotIn(b'type="password"',page.data)
         self.login()

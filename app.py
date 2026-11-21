@@ -14,6 +14,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from flask import Flask, jsonify, redirect, render_template_string, request, send_file, session, url_for
+from flask.sessions import SecureCookieSessionInterface
 from waitress import serve
 
 from serial_readonly import SerialSettings, SerialReadOnlyError, collect_serial_diagnostics
@@ -74,6 +75,28 @@ app.config.update(
     SESSION_COOKIE_SECURE=os.getenv("QM_HTTPS_ONLY", "false").lower() == "true",
     PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
 )
+
+
+def _https_request() -> bool:
+    """The browser reached the panel over HTTPS (directly or through Tailscale Serve).
+
+    The app only listens on loopback, so these signals come from the local proxy;
+    a local process faking them only makes its own cookie stricter.
+    """
+    host = request.host.rsplit(":", 1)[0].lower().rstrip(".")
+    return (request.is_secure or host.endswith(".ts.net")
+            or request.headers.get("X-Forwarded-Proto", "").lower() == "https")
+
+
+class _SessionInterface(SecureCookieSessionInterface):
+    # Secure whenever the page was served over HTTPS, so a session issued via
+    # Tailscale Serve is never sent to a plain-HTTP listener on the same name.
+    # Plain local HTTP (127.0.0.1) keeps working without QM_HTTPS_ONLY.
+    def get_cookie_secure(self, app):
+        return super().get_cookie_secure(app) or _https_request()
+
+
+app.session_interface = _SessionInterface()
 # Sign-in is delegated to an OpenID Connect provider: no password or password
 # hash exists anywhere in this application.
 oidc_settings = OIDCSettings.from_environment()
@@ -139,8 +162,8 @@ def _serial_exclusive(fn):
     return run
 
 
-LOGIN_PAGE = """<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="csrf-token" content="{{ csrf_token }}"><title>Entrar · Quidway Manager</title><link rel="stylesheet" href="/static/styles.css?v=20261113-light-1"></head><body class="login-body"><main class="login-shell"><section class="login-hero"><div><div class="brand-mark">Q</div><h2>Gerencie sua infraestrutura de rede</h2><p>Quidway Manager · Huawei Quidway S3900<br>Monitoramento, diagnóstico e configuração em um único console.</p></div><small>CONSOLE DE GERENCIAMENTO PRIVADO</small></section><section class="login-card"><p class="card-overline">ACESSO PRIVADO · SSO</p><h1>Entrar</h1><p class="login-note">O login é feito no provedor da sua organização ({{ provider }}) com autenticação de dois fatores. Nenhuma senha é digitada ou guardada neste aplicativo.</p>{% if error %}<p class="login-error" role="alert">{{ error }}</p>{% endif %}<form method="post" action="/login"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button id="sso-login" class="button button-primary" type="submit" autofocus>Entrar com SSO</button></form><small>Somente contas autorizadas entram. A sessão termina depois de 8 horas.</small></section></main></body></html>"""
-SETUP_REQUIRED_PAGE = """<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Configurar acesso · Quidway Manager</title><link rel="stylesheet" href="/static/styles.css?v=20261113-light-1"></head><body class="login-body"><main class="card setup-card"><h1>Configure o login SSO antes de iniciar</h1><p>O Quidway Manager está bloqueado até que o provedor OpenID Connect (emissor, client ID e e-mails autorizados) seja configurado. Execute o comando correspondente ao seu ambiente e reinicie o servidor.</p><p>Linux: <code>.venv/bin/python start.py configure</code></p><p>Windows: <code>.\\configure-login.ps1</code></p><p>Docker: <code>docker compose run --rm app configure</code></p></main></body></html>"""
+LOGIN_PAGE = """<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="csrf-token" content="{{ csrf_token }}"><title>Entrar · Quidway Manager</title><link rel="stylesheet" href="/static/styles.css?v=20261121-nav-1"></head><body class="login-body"><main class="login-shell"><section class="login-hero"><div><div class="brand-mark">Q</div><h2>Gerencie sua infraestrutura de rede</h2><p>Quidway Manager · switches Huawei VRP 3<br>Monitoramento, diagnóstico e configuração em um único console.</p></div><small>CONSOLE DE GERENCIAMENTO PRIVADO</small></section><section class="login-card"><p class="card-overline">ACESSO PRIVADO · SSO</p><h1>Entrar</h1><p class="login-note">O login é feito no provedor da sua organização ({{ provider }}) com autenticação de dois fatores. Nenhuma senha é digitada ou guardada neste aplicativo.</p>{% if error %}<p class="login-error" role="alert">{{ error }}</p>{% endif %}<form method="post" action="/login"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button id="sso-login" class="button button-primary" type="submit" autofocus>Entrar com SSO</button></form><small>Somente contas autorizadas entram. A sessão termina depois de 8 horas.</small></section></main></body></html>"""
+SETUP_REQUIRED_PAGE = """<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Configurar acesso · Quidway Manager</title><link rel="stylesheet" href="/static/styles.css?v=20261121-nav-1"></head><body class="login-body"><main class="card setup-card"><h1>Configure o login SSO antes de iniciar</h1><p>O Quidway Manager está bloqueado até que o provedor OpenID Connect (emissor, client ID e e-mails autorizados) seja configurado. Execute o comando correspondente ao seu ambiente e reinicie o servidor.</p><p>Linux: <code>.venv/bin/python start.py configure</code></p><p>Windows: <code>.\\configure-login.ps1</code></p><p>Docker: <code>docker compose run --rm app configure</code></p></main></body></html>"""
 
 
 def _render_login(error: str = "", status: int = 200):

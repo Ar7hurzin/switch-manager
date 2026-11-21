@@ -62,6 +62,24 @@ def _exchange(connection, command: str, settings: SerialSettings, allow_confirma
     return text, confirmation
 
 
+USER_VIEW = re.compile(r"<[^>\n]+>\s*$")
+SUB_VIEW = re.compile(r"\[[^\]\n]+\]\s*$")
+
+
+def _ensure_user_view(connection, settings: SerialSettings, wake: bytes) -> None:
+    """Plans start with system-view, which VRP accepts only from the user view.
+
+    A console left in a configuration subview (e.g. by a closed CLI on a physical
+    switch) would otherwise make the switch reject system-view, and that rejection
+    would wrongly mark the operation as CLI-only for the model.
+    """
+    if not SUB_VIEW.search(decode_switch_text(wake).replace("\r", "").rstrip()):
+        return
+    response, _ = _exchange(connection, "return", settings)
+    if not USER_VIEW.search(response):
+        raise ConfigurationError("O console não voltou à visão de usuário. Nenhuma configuração foi enviada.")
+
+
 def _check_target(connection, settings: SerialSettings, plan: ConfigurationPlan | None = None,
                   require_writes: bool = False) -> str:
     """Identify the switch on the wire before touching it.
@@ -415,7 +433,8 @@ def execute_plan(settings: SerialSettings, plan: ConfigurationPlan) -> list[dict
     output: list[dict[str, str]] = []
     completed: list[str] = []
     try:
-        open_console(connection, settings.timeout_seconds)
+        wake = open_console(connection, settings.timeout_seconds)
+        _ensure_user_view(connection, settings, wake)
         version = _check_target(connection, settings, plan, require_writes=True)
         output.append({"command": "display version", "output": version})
         _verify_vlan_preconditions(connection, settings, plan)

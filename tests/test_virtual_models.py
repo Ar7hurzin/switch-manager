@@ -119,6 +119,30 @@ class VirtualModelsTest(unittest.TestCase):
     def test_3com4500_rejected_operation_moves_to_cli(self):
         self.run_model("3com4500")
 
+    def test_console_left_in_a_subview_does_not_mark_operation_cli_only(self):
+        """A physical console keeps the view a closed CLI left; plans must start from the user view."""
+        import virtual_switch
+        original = virtual_switch.VirtualConsole.__init__
+
+        def left_in_vlan_view(console):
+            original(console)
+            console.view, console.target = "vlan", 10
+
+        with tempfile.TemporaryDirectory() as tmp, \
+             patch.dict(os.environ, QM_MODE="virtual", QM_VIRTUAL_MODEL="s3900",
+                        QM_VIRTUAL_STATE=str(Path(tmp) / "state.json")), \
+             patch.object(manager, "switch_capabilities", manager.SwitchCapabilities(Path(tmp) / "caps.json")), \
+             patch.object(virtual_switch.VirtualConsole, "__init__", left_in_vlan_view):
+            manager._login_attempts.clear()
+            client = manager.app.test_client()
+            headers = {"X-CSRF-Token": login(client)}
+            preview = client.post("/api/config/preview", json={"action": "create_vlan", "vlan_id": 40, "name": "LAB"}, headers=headers)
+            self.assertEqual(preview.status_code, 200, preview.get_json())
+            result = client.post("/api/config/apply", json={"token": preview.get_json()["token"]}, headers=headers)
+            self.assertEqual(result.status_code, 200, result.get_json())
+            self.assertEqual(client.get("/api/config/status").get_json()["unsupported_actions"], {})
+            self.assertIn(40, [v["id"] for v in client.get("/api/virtual/state").get_json()["vlans"]])
+
     def test_simulated_rejections_do_not_mark_real_switches(self):
         with tempfile.TemporaryDirectory() as tmp, \
              patch.dict(os.environ, QM_MODE="virtual", QM_VIRTUAL_MODEL="3com4500",
