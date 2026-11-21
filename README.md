@@ -1,6 +1,6 @@
-# Quidway Manager
+# Switch Manager
 
-Painel local em português para observar e configurar, de forma controlada, um switch Huawei Quidway S3900. A versão atual oferece demonstração, leitura SSHv2 e conexão serial. O usuário confirmou pelo terminal serial o Quidway 3900-SI 28-Port, VRP 3.10(CN), com COM9 a 9600 baud e executou consultas de leitura; a coleta serial pelo Manager e a compatibilidade dos comandos de alteração ainda não foram validadas neste release.
+Painel local em português para observar e configurar, de forma controlada, um switch Huawei Switch S3900. A versão atual oferece demonstração, leitura SSHv2 e conexão serial. O usuário confirmou pelo terminal serial o Switch 3900-SI 28-Port, VRP 3.10(CN), com COM9 a 9600 baud e executou consultas de leitura; a coleta serial pelo Manager e a compatibilidade dos comandos de alteração ainda não foram validadas neste release.
 
 ## O que funciona
 
@@ -22,7 +22,7 @@ As gravações são baseadas no manual de comandos da série S3900 Release 1510.
 
 ## Iniciar
 
-Na primeira execução, abra a pasta `QuidwayManager` no VS Code. No terminal PowerShell dessa pasta, configure o login local:
+Na primeira execução, abra a pasta `SwitchManager` no VS Code. No terminal PowerShell dessa pasta, configure o login local:
 
 ```powershell
 .\configure-login.ps1
@@ -40,7 +40,7 @@ O script prepara as bibliotecas na primeira execução e inicia o servidor. Abra
 
 O Tailscale Serve coloca o painel HTTPS **dentro da tailnet**, sem abrir uma porta no roteador e sem usar Funnel. As regras de acesso da tailnet continuam valendo. O computador que hospeda o app precisa permanecer ligado, conectado ao Tailscale, e com o app iniciado.
 
-1. Inicie o Quidway Manager com `.\start.ps1`.
+1. Inicie o Switch Manager com `.\start.ps1`.
 2. Execute `.\enable-tailnet.ps1` no PowerShell.
 3. Se o Tailscale informar que Serve ainda não está habilitado, abra o link oficial mostrado no terminal, entre na conta se necessário e aprove a ativação para a tailnet. Depois execute `.\enable-tailnet.ps1` novamente.
 4. O terminal mostrará o endereço HTTPS privado. Em outro dispositivo, conecte-se à mesma tailnet e abra esse endereço.
