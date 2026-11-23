@@ -1,0 +1,59 @@
+Fonte: /home/ar7hur/Projetos/quidway-manager-s3900/physical_dashboard.py
+SHA256 do arquivo inspecionado: 2ac92f29b6430caef6be79a37b1ab9e0d6fe836daece7869445cb43617091c29
+Trechos somente para rastrear a interpretação de cache e unidades.
+
+Linhas 49-70:
+49: def parse_port(text, number):
+50:     text = terminal_text(text)
+51:     interface = interface_name(number)
+52:     link = _field(text, rf"^[ \t]*{re.escape(interface)}[ \t]+(?:current[ \t]+state[ \t]*:|is)[ \t]*(UP|DOWN|Administratively[ \t]+DOWN)\b")
+53:     pvid = _field(text, r"\bPVID[ \t]*:[ \t]*(\d{1,4})\b")
+54:     mode = _field(text, r"\bPort[ \t]+link-type[ \t]*:[ \t]*(access|trunk|hybrid)\b")
+55:     desc = _field(text, r"^[ \t]*Description[ \t]*:[ \t]*([^\n]+)")
+56:     tagged = _field(text, r"^[ \t]*Tagged[ \t]+VLAN[ \t]+ID[ \t]*:[ \t]*([^\n]+)")
+57:     untagged = _field(text, r"^[ \t]*Untagged[ \t]+VLAN[ \t]+ID[ \t]*:[ \t]*([^\n]+)")
+58:     rx = _field(text, r"^[ \t]*Last[ \t]+\d+[ \t]+seconds[ \t]+input:[ \t]*\d+[ \t]+packets/sec[ \t]+(\d+)[ \t]+bytes/sec")
+59:     tx = _field(text, r"^[ \t]*Last[ \t]+\d+[ \t]+seconds[ \t]+output:[ \t]*\d+[ \t]+packets/sec[ \t]+(\d+)[ \t]+bytes/sec")
+60:     if not any(v is not None for v in (link, pvid, mode, desc, tagged, untagged, rx, tx)):
+61:         return None
+62:     return {"number": number, "interface": interface,
+63:             "state": ("up" if link.lower() == "up" else "down") if link else None,
+64:             "admin": False if link and "administratively" in link.lower() else None,
+65:             "pvid": int(pvid) if pvid and 1 <= int(pvid) <= 4094 else None,
+66:             "mode": mode.lower() if mode else None, "description": desc,
+67:             "tagged": tagged, "untagged": untagged,
+68:             "rx_bps": int(rx)*8 if rx is not None else None,
+69:             "tx_bps": int(tx)*8 if tx is not None else None, "collected_at": now()}
+70: 
+
+Linhas 334-363:
+334:         def refresh_port(connection, n):
+335:             output = query(connection, "display interface " + interface_name(n))
+336:             new = parse_port(output or "", n)
+337:             if not new:
+338:                 notes.append(f"Porta {n}: resposta não reconhecida; leitura anterior preservada.")
+339:                 return
+340:             old = data["ports"][n - 1]
+341:             if new["state"] is None:
+342:                 new["state"] = old.get("state")
+343:                 new["link_at"] = old.get("link_at")
+344:             else:
+345:                 new["link_at"] = new["collected_at"]
+346:             # Never overwrite a valid field with None from a partial response.
+347:             old.update({k: v for k, v in new.items() if v is not None})
+348:             old["collected_at"] = new["collected_at"]
+349: 
+350:         def refresh_vlan_detail(connection, vlan):
+351:             # Do not infer that a VLAN exists merely from a port PVID, a MAC,
+352:             # a cached inventory number or its previous existence.
+353:             new = parse_vlan_detail(query(connection, f"display vlan {vlan}") or "", vlan)
+354:             if not new:
+355:                 notes.append(f"VLAN {vlan}: consulta individual não confirmada.")
+356:                 return False
+357:             new["verified_individually"] = True
+358:             new["note"] = "Confirmada por display vlan " + str(vlan)
+359:             if data.get("vlans") is None:
+360:                 data["vlans"] = []
+361:             for row in data["vlans"]:
+362:                 if row["id"] == vlan:
+363:                     row.update({k: v for k, v in new.items() if v is not None})

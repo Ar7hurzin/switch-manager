@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE svg
+  PUBLIC '-//W3C//DTD SVG 1.0//EN'
+  'http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd'>
+<svg width="480" height="210" preserveAspectRatio="xMinYMin meet" viewBox="0 0 480 210" xmlns="http://www.w3.org/2000/svg" version="1.0" fill-rule="evenodd" xmlns:xlink="http://www.w3.org/1999/xlink">
+	<title>...</title>
+	<desc>...</desc>
+	<clipPath id="clip">
+		<rect x="0" y="0" width="480" height="210"/>
+	</clipPath>
+	<g id="group" transform="scale(1,-1) translate(0,-210)" style="clip-path: url(#clip)">
+		<g transform="">
+			<path d="M 42,35 L 462,35 Z" style="stroke: rgb(91%,94%,95%); stroke-linecap: butt; stroke-width: 0.6;"/>
+			<text x="29.536" y="32.0" style="font-family: Fira; font-size: 8px;fill: rgb(32%,39%,43%); stroke:none;" transform="translate(0,64) scale(1,-1)">0</text>
+			<path d="M 42,52.5 L 462,52.5 Z" style="stroke: rgb(91%,94%,95%); stroke-linecap: butt; stroke-width: 0.6;"/>
+			<text x="30.536" y="49.5" style="font-family: Fira; font-size: 8px;fill: rgb(32%,39%,43%); stroke:none;" transform="translate(0,99) scale(1,-1)">1</text>
+			<path d="M 42,70 L 462,70 Z" style="stroke: rgb(91%,94%,95%); stroke-linecap: butt; stroke-width: 0.6;"/>
+			<text x="30.04" y="67.0" style="font-family: Fira; font-size: 8px;fill: rgb(32%,39%,43%); stroke:none;" transform="translate(0,134) scale(1,-1)">2</text>
+			<path d="M 42,87.5 L 462,87.5 Z" style="stroke: rgb(91%,94%,95%); stroke-linecap: butt; stroke-width: 0.6;"/>
+			<text x="30.008" y="84.5" style="font-family: Fira; font-size: 8px;fill: rgb(32%,39%,43%); stroke:none;" transform="translate(0,169) scale(1,-1)">3</text>
+			<path d="M 42,105 L 462,105 Z" style="stroke: rgb(91%,94%,95%); stroke-linecap: butt; stroke-width: 0.6;"/>
+			<text x="29.744" y="102.0" style="font-family: Fira; font-size: 8px;fill: rgb(32%,39%,43%); stroke:none;" transform="translate(0,204) scale(1,-1)">4</text>
+			<path d="M 42,122.5 L 462,122.5 Z" style="stroke: rgb(91%,94%,95%); stroke-linecap: butt; stroke-width: 0.6;"/>
+			<text x="29.992" y="119.5" style="font-family: Fira; font-size: 8px;fill: rgb(32%,39%,43%); stroke:none;" transform="translate(0,239) scale(1,-1)">5</text>
+			<path d="M 42,140 L 462,140 Z" style="stroke: rgb(91%,94%,95%); stroke-linecap: butt; stroke-width: 0.6;"/>
+			<text x="29.736" y="137.0" style="font-family: Fira; font-size: 8px;fill: rgb(32%,39%,43%); stroke:none;" transform="translate(0,274) scale(1,-1)">6</text>
+			<path d="M 42,157.5 L 462,157.5 Z" style="stroke: rgb(91%,94%,95%); stroke-linecap: butt; stroke-width: 0.6;"/>
+			<text x="30.448" y="154.5" style="font-family: Fira; font-size: 8px;fill: rgb(32%,39%,43%); stroke:none;" transform="translate(0,309) scale(1,-1)">7</text>
+			<path d="M 42,175 L 462,175 Z" style="stroke: rgb(91%,94%,95%); stroke-linecap: butt; stroke-width: 0.6;"/>
+			<text x="29.592" y="172.0" style="font-family: Fira; font-size: 8px;fill: rgb(32%,39%,43%); stroke:none;" transform="translate(0,344) scale(1,-1)">8</text>
+			<text x="39.768" y="20" style="font-family: Fira; font-size: 8px;fill: rgb(32%,39%,43%); stroke:none;" transform="translate(0,40) scale(1,-1)">0</text>
+			<text x="107.772" y="20" style="font-family: Fira; font-size: 8px;fill: rgb(32%,39%,43%); stroke:none;" transform="translate(0,40) scale(1,-1)">30</text>
+			<text x="177.636" y="20" style="font-family: Fira; font-size: 8px;fill: rgb(32%,39%,43%); stroke:none;" transform="translate(0,40) scale(1,-1)">60</text>
+			<text x="247.668" y="20" style="font-family: Fira; font-size: 8px;fill: rgb(32%,39%,43%); stroke:none;" transform="translate(0,40) scale(1,-1)">90</text>
+			<text x="316.056" y="20" style="font-family: Fira; font-size: 8px;fill: rgb(32%,39%,43%); stroke:none;" transform="translate(0,40) scale(1,-1)">120</text>
+			<text x="386.032" y="20" style="font-family: Fira; font-size: 8px;fill: rgb(32%,39%,43%); stroke:none;" transform="translate(0,40) scale(1,-1)">150</text>
+			<text x="455.832" y="20" style="font-family: Fira; font-size: 8px;fill: rgb(32%,39%,43%); stroke:none;" transform="translate(0,40) scale(1,-1)">180</text>
+			<text x="2" y="190" style="font-family: Fira; font-size: 9px;fill: rgb(32%,39%,43%); stroke:none;" transform="translate(0,380) scale(1,-1)">Mbps</text>
+			<text x="175.9615" y="4" style="font-family: Fira; font-size: 9px;fill: rgb(32%,39%,43%); stroke:none;" transform="translate(0,8) scale(1,-1)">Tempo desde a primeira amostra (s)</text>
+			<polyline points="65.33333 35.00532, 88.66667 122.3937, 112 35.00802, 135.3333 121.9574, 158.6667 35.03997, 182 35.0053, 205.3333 135.5931, 228.69 35.00577, 252.0233 115.5447, 275.3567 35, 298.69 35, 322.0233 149.3125, 345.3567 35.00802, 368.69 106.9218, 392.0233 35.00899, 415.38 102.1925, 438.7133 35.02951, 462.0467 35.00619" style="stroke: rgb(0%,49%,56%); stroke-linecap: butt; stroke-width: 1.6; fill: None; fill-rule: evenodd;"/>
+			<path d="M 60,199 L 80,199 Z" style="stroke: rgb(0%,49%,56%); stroke-linecap: butt; stroke-width: 2;"/>
+			<text x="86" y="196" style="font-family: Fira; font-size: 9px;fill: rgb(7%,20%,28%); stroke:none;" transform="translate(0,392) scale(1,-1)">Ethernet TX</text>
+			<polyline points="65.33333 41.96456, 88.66667 127.5525, 112 53.09085, 135.3333 123.1687, 158.6667 38.32908, 182 39.74981, 205.3333 140.196, 228.69 35.26724, 252.0233 115.8744, 275.3567 35.29039, 298.69 36.30333, 322.0233 159.3454, 345.3567 67.26767, 368.69 133.0152, 392.0233 37.52663, 415.38 104.9642, 438.7133 36.11064, 462.0467 44.96669" style="stroke: rgb(86%,48%,16%); stroke-linecap: butt; stroke-width: 1.6; fill: None; fill-rule: evenodd;"/>
+			<path d="M 220,199 L 240,199 Z" style="stroke: rgb(86%,48%,16%); stroke-linecap: butt; stroke-width: 2;"/>
+			<text x="246" y="196" style="font-family: Fira; font-size: 9px;fill: rgb(7%,20%,28%); stroke:none;" transform="translate(0,392) scale(1,-1)">Wi-Fi RX</text>
+		</g>
+	</g>
+</svg>

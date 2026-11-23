@@ -1,0 +1,25 @@
+{
+  "operator_statement": {
+    "text": "Sim, os dois reproduziram simultaneamente",
+    "source": "Resposta do usuário nesta conversa à pergunta sobre reprodução simultânea de YouTube nos dois clientes",
+    "classification": "observação do operador; sem captura simultânea dos players",
+    "registered_at": "2026-11-16T16:04:18.249360-03:00"
+  },
+  "earlier_ping": {
+    "source": "Resumo da conversa Teste interface, turno ae37ccb0-f283-4fd9-883e-4ec126e6b21d",
+    "client_10.42.0.75": "1 de 4 perdido, 25%; saída bruta não disponível nos arquivos da sessão",
+    "client_10.42.0.155": "0% relatado; tamanho da amostra não explicitado no resumo",
+    "time": "Horário exato das sondas não disponível"
+  },
+  "initial_readonly_observation": {
+    "observed_at": "2026-11-16T15:59:49-03:00",
+    "client_10.42.0.75_neighbor_state": "FAILED; sem lladdr na resposta de ip -j neigh show",
+    "source": "Remote Desktop Commander, PID 119188; saída desta conversa"
+  },
+  "screenshots": {
+    "source_thread": "6ae50c50-3dd8-83e9-902b-e6ad2ce1284a",
+    "kind": "anexos históricos; arquivos originais preservados",
+    "clock_note": "Nome dos arquivos não certifica instante/fuso de captura; usar apenas horários visíveis como horários exibidos pela plataforma",
+    "new_capture": "A abertura de http://127.0.0.1:8787 no navegador foi negada pelo controle de permissão; nenhum print novo foi obtido"
+  }
+}

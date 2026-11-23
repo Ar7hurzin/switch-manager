@@ -1,0 +1,28 @@
+{
+  "collected_at": "2026-11-16T16:03:44.404600-03:00",
+  "link_counters": {
+    "stdout": "[{\"ifindex\":1,\"ifname\":\"lo\",\"flags\":[\"LOOPBACK\",\"UP\",\"LOWER_UP\"],\"mtu\":65536,\"qdisc\":\"noqueue\",\"operstate\":\"UNKNOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"loopback\",\"address\":\"00:00:00:00:00:00\",\"broadcast\":\"00:00:00:00:00:00\",\"stats64\":{\"rx\":{\"bytes\":114050636,\"packets\":263414,\"errors\":0,\"dropped\":0,\"over_errors\":0,\"multicast\":0},\"tx\":{\"bytes\":114050636,\"packets\":263414,\"errors\":0,\"dropped\":0,\"carrier_errors\":0,\"collisions\":0}}},{\"ifindex\":2,\"ifname\":\"enp0s31f6\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"fq_codel\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"a4:4c:c8:35:7a:0e\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"stats64\":{\"rx\":{\"bytes\":57901121,\"packets\":557799,\"errors\":0,\"dropped\":0,\"over_errors\":0,\"multicast\":270},\"tx\":{\"bytes\":3136482146,\"packets\":2435201,\"errors\":0,\"dropped\":120,\"carrier_errors\":0,\"collisions\":0}},\"altnames\":[\"enxa44cc8357a0e\"]},{\"ifindex\":3,\"ifname\":\"wlp2s0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"UP\",\"linkmode\":\"DORMANT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"52:68:d6:a0:62:01\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"permaddr\":\"b0:52:16:ff:cb:05\",\"stats64\":{\"rx\":{\"bytes\":19075989566,\"packets\":16053406,\"errors\":0,\"dropped\":0,\"over_errors\":0,\"multicast\":0},\"tx\":{\"bytes\":1961291608,\"packets\":4916149,\"errors\":0,\"dropped\":740,\"carrier_errors\":0,\"collisions\":0}},\"altnames\":[\"wlxb05216ffcb05\"]}]\n",
+    "stderr": "",
+    "returncode": 0
+  },
+  "dnsmasq": {
+    "stdout": "114478 /usr/sbin/dnsmasq --conf-file=/dev/null --no-hosts --keep-in-foreground --bind-interfaces --except-interface=lo --clear-on-reload --strict-order --listen-address=10.42.0.1 --dhcp-range=10.42.0.10,10.42.0.254,3600 --dhcp-leasefile=/var/lib/NetworkManager/dnsmasq-enp0s31f6.leases --pid-file=/run/nm-dnsmasq-enp0s31f6.pid --conf-dir=/etc/NetworkManager/dnsmasq-shared.d\n",
+    "stderr": "",
+    "returncode": 0
+  },
+  "sampler": {
+    "stdout": "",
+    "stderr": "",
+    "returncode": 1
+  },
+  "clock": {
+    "stdout": "Timezone=America/Sao_Paulo\nNTPSynchronized=yes\n",
+    "stderr": "",
+    "returncode": 0
+  },
+  "dhcp_log": {
+    "stdout": "2026-11-16T15:41:58-03:00 ar7hur dnsmasq-dhcp[114478]: DHCPREQUEST(enp0s31f6) 10.42.0.155 74:86:7a:f5:9a:66\n2026-11-16T15:41:58-03:00 ar7hur dnsmasq-dhcp[114478]: DHCPACK(enp0s31f6) 10.42.0.155 74:86:7a:f5:9a:66 lrcufupc\n2026-11-16T15:47:37-03:00 ar7hur dnsmasq-dhcp[114478]: DHCPREQUEST(enp0s31f6) 10.42.0.75 08:8f:c3:98:1e:b3\n2026-11-16T15:47:37-03:00 ar7hur dnsmasq-dhcp[114478]: DHCPACK(enp0s31f6) 10.42.0.75 08:8f:c3:98:1e:b3 Aspire-A315-34\n2026-11-16T16:00:31-03:00 ar7hur dnsmasq-dhcp[114478]: DHCPDISCOVER(enp0s31f6) 10.42.0.75 08:8f:c3:98:1e:b3\n2026-11-16T16:00:31-03:00 ar7hur dnsmasq-dhcp[114478]: DHCPOFFER(enp0s31f6) 10.42.0.75 08:8f:c3:98:1e:b3\n2026-11-16T16:00:31-03:00 ar7hur dnsmasq-dhcp[114478]: DHCPREQUEST(enp0s31f6) 10.42.0.75 08:8f:c3:98:1e:b3\n2026-11-16T16:00:31-03:00 ar7hur dnsmasq-dhcp[114478]: DHCPACK(enp0s31f6) 10.42.0.75 08:8f:c3:98:1e:b3 Aspire-A315-34",
+    "stderr": "",
+    "returncode": 0
+  }
+}
