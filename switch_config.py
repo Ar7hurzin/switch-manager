@@ -9,7 +9,10 @@ import ipaddress
 import re
 import secrets
 import time
-from dataclasses import dataclass
+import threading
+from dataclasses import dataclass, replace
+
+from switch_profiles import S3900_INVENTORY, Inventory
 
 
 class ConfigurationError(ValueError):
@@ -22,10 +25,13 @@ class ConfigurationPlan:
     summary: str
     commands: tuple[str, ...]
     warnings: tuple[str, ...]
+    expected_port_mode: str | None = None
+    # identity_key of the switch the preview was built for; the executor refuses another one.
+    device_identity: str | None = None
 
 
 def _vlan_id(value: object) -> int:
-    if isinstance(value, bool):
+    if isinstance(value, bool) or not (isinstance(value, int) or (isinstance(value, str) and re.fullmatch(r"[0-9]{1,4}", value))):
         raise ConfigurationError("O ID da VLAN deve ser um número entre 1 e 4094.")
     try:
         vlan_id = int(value)
@@ -43,18 +49,14 @@ def _vlan_list(value: object, field: str = "VLANs") -> list[int]:
     return values
 
 
-def _port(value: object) -> tuple[int, str]:
-    if isinstance(value, bool):
-        raise ConfigurationError("Selecione uma porta entre 1 e 28.")
-    try:
-        number = int(value)
-    except (TypeError, ValueError) as exc:
-        raise ConfigurationError("Selecione uma porta entre 1 e 28.") from exc
-    if not 1 <= number <= 28:
-        raise ConfigurationError("Este modelo tem 24 portas FE e 4 GE; use a numeração de 1 a 28.")
-    if number <= 24:
-        return number, f"Ethernet1/0/{number}"
-    return number, f"GigabitEthernet1/1/{number - 24}"
+def _port(value: object, inventory: Inventory = S3900_INVENTORY) -> tuple[int, str]:
+    total = len(inventory)
+    if isinstance(value, bool) or not (isinstance(value, int) or (isinstance(value, str) and re.fullmatch(r"[0-9]{1,4}", value))):
+        raise ConfigurationError(f"Selecione uma porta entre 1 e {total}.")
+    number = int(value)
+    if not 1 <= number <= total:
+        raise ConfigurationError(f"Este switch tem {total} portas ({inventory.summary()}); use a numeração de 1 a {total}.")
+    return number, inventory.name(number)
 
 
 def _safe_text(value: object, label: str, max_length: int = 31) -> str:
@@ -69,6 +71,9 @@ def _safe_text(value: object, label: str, max_length: int = 31) -> str:
 def _port_description(value: object) -> str:
     if not isinstance(value, str):
         raise ConfigurationError("Informe a descrição da porta.")
+    if any(ord(ch) < 0x20 or ord(ch) == 0x7f for ch in value):
+        # Reject (never silently rewrite) line breaks and control characters.
+        raise ConfigurationError("A descrição não pode conter quebras de linha nem caracteres de controle.")
     value = " ".join(value.strip().split())
     if not value or len(value) > 64 or not re.fullmatch(r"[A-Za-z0-9 _.-]+", value):
         raise ConfigurationError("A descrição aceita de 1 a 64 caracteres: letras, números, espaço, ponto, hífen ou sublinhado.")
@@ -79,10 +84,25 @@ def _vlan_words(values: list[int]) -> str:
     return " ".join(str(value) for value in values)
 
 
-def build_plan(payload: object) -> ConfigurationPlan:
+def _vlan_commands(prefix: str, values: list[int], suffix: str = "") -> list[str]:
+    # The legacy S3900 command manual permits at most ten VLAN IDs/ranges per line.
+    return [prefix + _vlan_words(values[i:i + 10]) + suffix
+            for i in range(0, len(values), 10)]
+
+
+def build_plan(payload: object, inventory: Inventory = S3900_INVENTORY,
+               device_identity: str | None = None) -> ConfigurationPlan:
+    """Typed plan for the identified switch; the port number indexes its real inventory."""
+    plan = _build_plan(payload, inventory)
+    return replace(plan, device_identity=device_identity)
+
+
+def _build_plan(payload: object, inventory: Inventory) -> ConfigurationPlan:
     if not isinstance(payload, dict):
         raise ConfigurationError("A solicitação de configuração está inválida.")
     action = payload.get("action")
+    if not isinstance(action, str):
+        raise ConfigurationError("Operação de configuração não reconhecida.")
     warnings: list[str] = [
         "As mudanças entram imediatamente na configuração em execução. Use o console serial local para manter acesso ao switch.",
         "A sintaxe está baseada no Command Manual da série S3900; o release VRP 3.10(CN) RELEASE 0002 deste aparelho ainda requer validação específica antes de habilitar gravações.",
@@ -92,15 +112,15 @@ def build_plan(payload: object) -> ConfigurationPlan:
         name = payload.get("name", "")
         commands = ["system-view", f"vlan {vlan}"]
         if name:
-            commands.append(f"name {_safe_text(name, 'nome da VLAN')}")
+            commands.append(f"description {_safe_text(name, 'descrição da VLAN')}")
         commands.extend(("quit", "return"))
         return ConfigurationPlan(action, f"Criar VLAN {vlan}" + (f" ({name})" if name else ""), tuple(commands), tuple(warnings))
 
     if action == "rename_vlan":
         vlan = _vlan_id(payload.get("vlan_id"))
-        name = _safe_text(payload.get("name"), "nome da VLAN")
-        commands = ("system-view", f"vlan {vlan}", f"name {name}", "quit", "return")
-        return ConfigurationPlan(action, f"Alterar nome da VLAN {vlan} para {name}", commands, tuple(warnings))
+        name = _safe_text(payload.get("name"), "descrição da VLAN")
+        commands = ("system-view", f"vlan {vlan}", f"description {name}", "quit", "return")
+        return ConfigurationPlan(action, f"Alterar descrição da VLAN {vlan} para {name}", commands, tuple(warnings))
 
     if action == "delete_vlan":
         vlan = _vlan_id(payload.get("vlan_id"))
@@ -111,7 +131,7 @@ def build_plan(payload: object) -> ConfigurationPlan:
         return ConfigurationPlan(action, f"Excluir VLAN {vlan}", commands, tuple(warnings))
 
     if action in {"set_access_port", "set_trunk_port", "set_hybrid_port", "set_port_description", "set_port_state"}:
-        number, interface = _port(payload.get("port"))
+        number, interface = _port(payload.get("port"), inventory)
         base = ["system-view", f"interface {interface}"]
         if action == "set_access_port":
             vlan = _vlan_id(payload.get("vlan_id"))
@@ -123,9 +143,11 @@ def build_plan(payload: object) -> ConfigurationPlan:
             pvid = _vlan_id(payload.get("pvid", 1))
             if pvid not in vlans:
                 raise ConfigurationError("A VLAN nativa/PVID precisa estar incluída na lista permitida do trunk.")
-            commands = tuple(base + ["port link-type trunk", f"port trunk permit vlan {_vlan_words(vlans)}", f"port trunk pvid vlan {pvid}", "quit", "return"])
+            commands = tuple(base + ["port link-type trunk", "undo port trunk permit vlan all"]
+                             + _vlan_commands("port trunk permit vlan ", vlans)
+                             + [f"port trunk pvid vlan {pvid}", "quit", "return"])
             summary = f"Configurar porta {number} como trunk (PVID {pvid})"
-            warnings.append("Revise a lista completa de VLANs permitidas e o PVID antes de aplicar; o link pode ser interrompido.")
+            warnings.append("A lista substitui todas as VLANs anteriores: a prévia remove as permissões antes de reaplicá-las. Isso interrompe o tráfego momentaneamente; não há atomicidade nem rollback automático.")
         elif action == "set_hybrid_port":
             tagged = _vlan_list(payload.get("tagged_vlans"), "VLANs tagged") if payload.get("tagged_vlans") else []
             untagged = _vlan_list(payload.get("untagged_vlans"), "VLANs untagged") if payload.get("untagged_vlans") else []
@@ -137,22 +159,22 @@ def build_plan(payload: object) -> ConfigurationPlan:
             pvid = _vlan_id(payload.get("pvid", 1))
             if pvid not in untagged:
                 raise ConfigurationError("No modo hybrid, a PVID deve estar entre as VLANs untagged.")
-            commands_list = base + ["port link-type hybrid"]
+            commands_list = base + ["port link-type hybrid", "undo port hybrid vlan 1 to 4094"]
             if tagged:
-                commands_list.append(f"port hybrid vlan {_vlan_words(tagged)} tagged")
+                commands_list.extend(_vlan_commands("port hybrid vlan ", tagged, " tagged"))
             if untagged:
-                commands_list.append(f"port hybrid vlan {_vlan_words(untagged)} untagged")
+                commands_list.extend(_vlan_commands("port hybrid vlan ", untagged, " untagged"))
             commands_list.extend((f"port hybrid pvid vlan {pvid}", "quit", "return"))
             commands = tuple(commands_list)
             summary = f"Configurar porta {number} como hybrid (PVID {pvid})"
-            warnings.append("Revise todas as VLANs tagged/untagged; a configuração pode afetar serviços conectados à porta.")
+            warnings.append("As listas substituem todas as VLANs anteriores: a prévia remove as associações antes de reaplicá-las. Isso interrompe o tráfego momentaneamente; não há atomicidade nem rollback automático.")
         elif action == "set_port_description":
             description = _port_description(payload.get("description"))
             commands = tuple(base + [f"description {description}", "quit", "return"])
             summary = f"Alterar descrição da porta {number}"
         else:
             state = payload.get("state")
-            if state not in {"up", "down"}:
+            if not isinstance(state, str) or state not in {"up", "down"}:
                 raise ConfigurationError("Estado da porta inválido.")
             command = "undo shutdown" if state == "up" else "shutdown"
             commands = tuple(base + [command, "quit", "return"])
@@ -172,7 +194,7 @@ def build_plan(payload: object) -> ConfigurationPlan:
             interface = ipaddress.IPv4Interface(f"{payload.get('ip')}/{payload.get('prefix')}")
         except (ValueError, TypeError) as exc:
             raise ConfigurationError("Informe um IPv4 válido e um prefixo de 1 a 30.") from exc
-        if interface.network.prefixlen < 1 or interface.network.prefixlen > 30 or interface.ip.is_multicast or interface.ip.is_unspecified:
+        if interface.network.prefixlen < 1 or interface.network.prefixlen > 30 or interface.ip.is_multicast or interface.ip.is_unspecified or interface.ip in {interface.network.network_address, interface.network.broadcast_address}:
             raise ConfigurationError("O endereço de gestão precisa ser IPv4 unicast com prefixo entre /1 e /30.")
         mask = str(interface.network.netmask)
         commands = ("system-view", f"interface Vlan-interface {vlan}", f"ip address {interface.ip} {mask}", "quit", "return")
@@ -205,23 +227,37 @@ def build_plan(payload: object) -> ConfigurationPlan:
     raise ConfigurationError("Operação de configuração não reconhecida.")
 
 
-_PREVIEWS: dict[str, tuple[float, ConfigurationPlan]] = {}
+_PREVIEWS: dict[str, tuple[float, ConfigurationPlan, str]] = {}
+_PREVIEWS_LOCK = threading.Lock()
 
 
-def issue_preview(plan: ConfigurationPlan, lifetime_seconds: int = 300) -> str:
+def issue_preview(plan: ConfigurationPlan, lifetime_seconds: int = 300, *, owner: object) -> str:
+    if not isinstance(owner, str) or not owner:
+        raise ConfigurationError("Sessão inválida. Entre novamente.")
     now = time.monotonic()
-    expired = [key for key, (expiry, _) in _PREVIEWS.items() if expiry < now]
-    for key in expired:
-        _PREVIEWS.pop(key, None)
-    token = secrets.token_urlsafe(32)
-    _PREVIEWS[token] = (now + lifetime_seconds, plan)
-    return token
+    with _PREVIEWS_LOCK:
+        for key, (expiry, _, _) in list(_PREVIEWS.items()):
+            if expiry <= now:
+                _PREVIEWS.pop(key, None)
+        if len(_PREVIEWS) >= 256:
+            raise ConfigurationError("Limite de prévias atingido. Aguarde a expiração de uma prévia.")
+        token = secrets.token_urlsafe(32)
+        _PREVIEWS[token] = (now + lifetime_seconds, plan, owner)
+        return token
 
 
-def consume_preview(token: object) -> ConfigurationPlan:
-    if not isinstance(token, str):
+def clear_previews() -> None:
+    """Drop every pending preview (e.g. a different switch was connected)."""
+    with _PREVIEWS_LOCK:
+        _PREVIEWS.clear()
+
+
+def consume_preview(token: object, *, owner: object) -> ConfigurationPlan:
+    if not isinstance(token, str) or not isinstance(owner, str):
         raise ConfigurationError("Prévia ausente. Gere uma nova prévia.")
-    entry = _PREVIEWS.pop(token, None)
-    if not entry or entry[0] < time.monotonic():
-        raise ConfigurationError("A prévia expirou ou já foi usada. Gere uma nova prévia.")
-    return entry[1]
+    with _PREVIEWS_LOCK:
+        entry = _PREVIEWS.get(token)
+        if not entry or entry[0] <= time.monotonic() or entry[2] != owner:
+            raise ConfigurationError("A prévia expirou, já foi usada ou pertence a outra sessão. Gere uma nova prévia.")
+        del _PREVIEWS[token]
+        return entry[1]

@@ -1,0 +1,15 @@
+﻿id,teste,classificacao,resultado,evidencias,limite
+T01,VLAN 12 e portas 1/2/3,COMPROVADO,"3 leituras individuais; untagged 1/2/3, access/PVID 12",E01,Não comprova isolamento entre VLANs
+T02,Fedora como gateway da LAN,COMPROVADO PARCIAL,10.42.0.1/24; shared; rota externa Wi-Fi; forwarding por interface=1,E03/E04,Regras NAT e caminho efetivo dos clientes não auditados
+T03,Associação IP/MAC cliente 1,COMPROVADO,10.42.0.75 / 08:8f:c3:98:1e:b3 / porta 1 / VLAN 12,E01/E03/E04,Correlação entre fontes e horários
+T04,Associação IP/MAC cliente 2,COMPROVADO,10.42.0.155 / 74:86:7a:f5:9a:66 / porta 3 / VLAN 12,E01/E03/E04,Correlação entre fontes e horários
+T05,DHCP dos clientes,COMPROVADO,DHCPACK .155 às 15:41:58; .75 às 15:47:37 e 16:00:31,E04,Arquivo de leases sem permissão; ACKs comprovados no journal
+T06,Ping Fedora -> cliente 1,COMPROVADO,"20/20, 0% perda, RTT médio 0.505 ms",E03,Janela de ~6 s; não elimina perda histórica de 25%
+T07,Ping Fedora -> cliente 2,COMPROVADO,"20/20, 0% perda, RTT médio 0.496 ms",E03,Janela de ~6 s
+T08,Ping Fedora -> 8.8.8.8,COMPROVADO,"20/20, 0% perda, RTT médio 39.444 ms",E03,Não é ping iniciado nos clientes
+T09,Resolução de youtube.com no Fedora,COMPROVADO,getent retornou 142.251.128.110,E03,Não comprova acesso HTTPS nem reprodução
+T10,Tráfego na Ethernet do Fedora,COMPROVADO,43.508292 MB TX em 180.016746 s,E02/E06,"Agregado de interface, sem atribuição por aplicativo"
+T11,YouTube simultâneo nos 2 clientes,RELATADO PELO OPERADOR,Usuário confirmou nesta conversa,E05,"Sem captura simultânea dos players, resolução ou duração"
+T12,Ausência de travamentos e perdas prolongadas,NÃO COMPROVADO,Sem telemetria de buffer ou ensaio longo,E01/E02/E03,Não aprovar estabilidade de longa duração
+T13,Perdas/CRC do switch,NÃO MEDIDO,JSONL não guarda esses contadores,E01/E07,Timeout serial não equivale a perda de pacotes
+T14,Persistência após reinício do switch,NÃO RETESTADO,Não houve reboot ou consulta de configuração salva nesta etapa,E05,Relato anterior de save não certifica revalidação atual

@@ -12,7 +12,7 @@ if (-not (Test-Path $tailscale)) {
 try {
     $null = Invoke-RestMethod -Uri "$url/api/health" -TimeoutSec 3
 } catch {
-    throw "O Quidway Manager não está ativo em $url. Inicie-o com .\start.ps1 e tente novamente."
+    throw "O Switch Manager não está ativo em $url. Inicie-o com .\start.ps1 e tente novamente."
 }
 
 $existing = (& $tailscale serve status 2>&1 | Out-String).Trim()
@@ -28,5 +28,6 @@ if ($result -match 'Serve is not enabled on your tailnet') {
 }
 if ($LASTEXITCODE -ne 0) { throw 'O Tailscale não conseguiu configurar o acesso privado.' }
 
+Write-Host 'Pelo endereço HTTPS da tailnet o cookie de sessão é emitido com Secure automaticamente.'
 Write-Host "`nConfiguração atual do Tailscale Serve:" -ForegroundColor Cyan
 & $tailscale serve status

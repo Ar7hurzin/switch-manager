@@ -1,4 +1,4 @@
-# Módulo de configuração do Quidway Manager
+# Módulo de configuração do Switch Manager
 
 ## Escopo implementado
 
@@ -44,7 +44,7 @@ Depois de validar o comando em console local e revisar o código, o operador pod
 $env:QM_ENABLE_CONFIG_WRITES = 'true'
 ```
 
-Reinicie o Quidway Manager para carregar a variável. A habilitação não executa mudanças por si só; cada ação ainda exige prévia, backup, frase e clique em **Aplicar no switch**.
+Reinicie o Switch Manager para carregar a variável. A habilitação não executa mudanças por si só; cada ação ainda exige prévia, backup, frase e clique em **Aplicar no switch**.
 
 ## Limites atuais
 
@@ -55,3 +55,15 @@ A versão instalada é antiga e SSH informa versão 1.5; as alterações continu
 ## Referência de comandos
 
 As formas de VLAN, interface, endereço IP de VLAN, `shutdown`, `sysname`, rota estática e `save` foram cotejadas com o manual S3900 Release 1510. A família/modelo precisa ser cotejada com o [Command Manual da série Huawei Quidway S3900](https://www.manualslib.com/manual/1144604/Huawei-Quidway-S3900-Series.html) e com o release 0002 antes de habilitar gravações. Esse manual é de outro release; prévia no Manager não é evidência de compatibilidade.
+
+## Correções de novembro de 2026
+
+Trunk e hybrid representam a lista completa desejada; a prévia inclui comandos explícitos de remoção antes de adicionar a lista nova. Essa substituição pode interromper o tráfego durante a execução e não é atômica. A aplicação verifica o resultado por consultas; rejeição, estado divergente ou leitura inconclusiva não são reportados como sucesso. Veja [notas de validação](correcoes-2026-11.md).
+
+Sair revoga a autorização da sessão no servidor, inclusive uma cópia anterior do cookie. Reiniciar o servidor exige novo login. Presença recente no Dashboard não determina a duração da autorização. O inicializador usa um único processo; múltiplos processos independentes não compartilham estado serial/sessões.
+
+## Prévias dependentes do estado atual
+
+Para trunk/hybrid, gerar uma prévia exige ler o modo da porta pelo console, com exclusividade e identificação do perfil. A prévia inclui a passagem por access somente quando a troca entre trunk e hybrid precisa dela. Se o modo já for o desejado, não há etapa access intermediária. Se o modo mudar após a prévia, a aplicação é bloqueada antes de comandos de configuração e solicita nova prévia. A leitura de verificação considera listas multilinha e rejeita ambiguidades.
+
+Durante Aplicar, os formulários ficam bloqueados. Respostas atrasadas de uma prévia antiga são descartadas. Na CLI, botão e teclado compartilham o mesmo bloqueio de envio; nenhuma repetição automática é feita após falha de rede.

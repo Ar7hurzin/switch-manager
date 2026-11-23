@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from switch_text import decode_switch_text
+from switch_text import decode_switch_text, command_rejected
 
 
 class SSHReadOnlyError(RuntimeError):
@@ -49,11 +49,13 @@ class SwitchSettings:
 # Never accept commands from the browser. Keep the initial live path query-only.
 READ_ONLY_COMMANDS = ("display version", "display vlan")
 PROMPT = re.compile(rb"(?m)(?:<[^>\r\n]+>|\[[^\]\r\n]+\])\s*$")
+MORE_MARKERS = (b"---- More ----", b"More: ")
 
 
 def _read_until_prompt(channel, timeout_seconds: int, max_bytes: int = 256_000) -> bytes:
     start = time.monotonic()
     data = bytearray()
+    handled_more = 0
     while time.monotonic() - start < timeout_seconds:
         if channel.recv_ready():
             block = channel.recv(8192)
@@ -62,8 +64,13 @@ def _read_until_prompt(channel, timeout_seconds: int, max_bytes: int = 256_000) 
             data.extend(block)
             if len(data) > max_bytes:
                 raise SSHReadOnlyError("A saída do switch excedeu o limite seguro de leitura.")
-            if PROMPT.search(bytes(data).rstrip()):
-                return bytes(data)
+            raw = bytes(data)
+            marker_count = max((raw.count(marker) for marker in MORE_MARKERS), default=0)
+            if marker_count > handled_more:
+                channel.sendall(" ")
+                handled_more = marker_count
+            if PROMPT.search(raw.rstrip()):
+                return raw
         elif channel.closed or channel.exit_status_ready():
             break
         else:
@@ -104,7 +111,6 @@ def collect_diagnostics(settings: SwitchSettings) -> list[dict[str, str]]:
 
     client = paramiko.SSHClient()
     try:
-        client.load_system_host_keys()
         client.load_host_keys(str(known_hosts))
         # StrictHostKeyChecking behavior: reject an unknown or changed host key.
         client.set_missing_host_key_policy(paramiko.RejectPolicy())
@@ -125,9 +131,12 @@ def collect_diagnostics(settings: SwitchSettings) -> list[dict[str, str]]:
         _read_until_prompt(channel, settings.timeout_seconds)
         results: list[dict[str, str]] = []
         for command in READ_ONLY_COMMANDS:
-            channel.send(command + "\r\n")
+            channel.sendall(command + "\r\n")
             raw = _read_until_prompt(channel, settings.timeout_seconds)
-            results.append({"command": command, "output": _clean_output(raw, command)})
+            output = _clean_output(raw, command)
+            if command_rejected(output):
+                raise SSHReadOnlyError(f"O switch rejeitou a consulta {command}. Confira o firmware e o acesso.")
+            results.append({"command": command, "output": output})
         channel.close()
         return results
     except paramiko.AuthenticationException as exc:

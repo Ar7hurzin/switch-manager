@@ -1,4 +1,6 @@
+-c constraints.txt
 Flask>=3.1,<4
-paramiko>=3.5,<4
+PyJWT[crypto]>=2.10,<3
+paramiko>=5,<6
 waitress>=3,<4
 pyserial>=3.5,<4

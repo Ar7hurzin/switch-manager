@@ -1,12 +1,14 @@
-QUIDWAY MANAGER — COMO CONECTAR AO SWITCH E USAR
+SWITCH MANAGER — COMO CONECTAR AO SWITCH E USAR
 Guia para a versão com leitura por console serial
 
 SITUAÇÃO CONFIRMADA ATÉ AQUI
-O console mostrou um Quidway 3900-SI 28-Port, VRP 3.10(CN), RELEASE 0002. O status informou SSH 1.5. O conector SSH do aplicativo usa bibliotecas atuais compatíveis com SSHv2; não enfraquecemos a segurança para aceitar SSH 1.5. Por isso, o caminho preparado para o primeiro teste é o cabo console serial conectado ao computador que executa o Quidway Manager.
+O console mostrou um Quidway 3900-SI 28-Port, VRP 3.10(CN), RELEASE 0002. O status informou SSH 1.5. O conector SSH do aplicativo usa bibliotecas atuais compatíveis com SSHv2; não enfraquecemos a segurança para aceitar SSH 1.5. Por isso, o caminho preparado para o primeiro teste é o cabo console serial conectado ao computador que executa o Switch Manager.
 
-Em 03/11/2026, o console serial foi usado pelo terminal do usuário em COM9, 9600 baud. As consultas display version e display vlan retornaram os dados mostrados nos screenshots. Isso confirma o acesso pelo terminal, mas não confirma que o coletor serial do Quidway Manager tenha sido executado. O equipamento respondeu como Quidway 3900-SI 28-Port, VRP 3.10(CN), RELEASE 0002, hardware SI_REV.C. A saída permanece bruta; mapas e gráficos ainda não interpretam esses dados.
+Em 03/11/2026, o console serial foi usado pelo terminal do usuário em COM9, 9600 baud. As consultas display version e display vlan retornaram os dados mostrados nos screenshots. Isso confirma o acesso pelo terminal, mas não confirma que o coletor serial do Switch Manager tenha sido executado. O equipamento respondeu como Quidway 3900-SI 28-Port, VRP 3.10(CN), RELEASE 0002, hardware SI_REV.C. A saída permanece bruta; mapas e gráficos ainda não interpretam esses dados.
 
 A ação **Atualizar leitura** no modo serial envia somente estas duas consultas fixas e não altera configuração. A área Configuração usa rotas separadas; o envio delas fica bloqueado por `QM_ENABLE_CONFIG_WRITES=false`. Os valores COM9/9600 também aparecem na sessão salva do MobaXterm e foram usados na leitura bem-sucedida.
+
+Atualização de 23/11/2026: o console do S3900 e do S3000 foi alterado para 115200 baud (user-interface aux 0 → speed 115200) e salvo com save nos dois switches. A partir dessa data, use 115200 no Switch Manager e no terminal; 9600 só mostra caracteres ilegíveis.
 
 IMPORTANTE SOBRE O CABO E ACESSO REMOTO
 O computador que executa o app precisa permanecer fisicamente conectado ao switch pelo cabo console USB/serial. O Tailscale pode dar acesso privado ao painel web desse computador, mas não transporta a porta COM diretamente para outro dispositivo. Feche Tera Term/MobaXterm antes de abrir o app, porque a porta COM geralmente só pode ser usada por um programa de cada vez.
@@ -14,20 +16,20 @@ O computador que executa o app precisa permanecer fisicamente conectado ao switc
 PASSO 1 — CONFIRA A PORTA E A VELOCIDADE
 1. Conecte o cabo console ao computador e ao switch.
 2. No Gerenciador de Dispositivos do Windows, abra “Portas (COM e LPT)” e confirme a porta. COM9 é a porta vista anteriormente; confirme que continua igual.
-3. Use a mesma velocidade serial que funcionou no terminal. A sessão salva do MobaXterm indica 9600 baud para este cabo/switch.
+3. Use a mesma velocidade serial do console do switch: 115200 baud desde 23/11/2026. Atualize também a sessão salva do MobaXterm, que ainda pode estar em 9600.
 4. No terminal, confirme que aparece o prompt <Quidway>. Feche o programa terminal completamente antes de seguir.
 
 PASSO 2 — CONFIGURE O APP PARA O CONSOLE
-Abra o PowerShell na pasta QuidwayManager. Se ainda não existir configuração local, crie-a:
+Abra o PowerShell na pasta switch-manager. Se ainda não existir configuração local, crie-a:
 
     Copy-Item .\local-settings.example.ps1 .\local-settings.ps1
     notepad .\local-settings.ps1
 
-No Bloco de Notas, habilite e ajuste estas linhas. Altere COM9 e 9600 se o Gerenciador de Dispositivos ou a sessão do terminal mostrarem outros valores:
+No Bloco de Notas, habilite e ajuste estas linhas. Altere COM9 e 115200 se o Gerenciador de Dispositivos ou a sessão do terminal mostrarem outros valores:
 
     $env:QM_MODE = 'serial'
     $env:QM_SERIAL_PORT = 'COM9'
-    $env:QM_SERIAL_BAUD = '9600'
+    $env:QM_SERIAL_BAUD = '115200'
 
 Salve o arquivo e feche o Bloco de Notas. Deixe todas as linhas QM_MODE='real' e opções de SSH comentadas com #. Não é preciso cadastrar usuário ou senha do switch para a conexão serial, a menos que o próprio console peça autenticação.
 
@@ -36,7 +38,7 @@ Na primeira vez, execute:
 
     .\configure-login.ps1
 
-Escolha um usuário e uma senha com pelo menos 12 caracteres. A senha é digitada sem aparecer na tela. O arquivo local-settings.ps1 guarda apenas o hash da senha e uma chave aleatória da sessão; ele é ignorado pelo Git.
+O login é por SSO (OpenID Connect) com 2FA no provedor da organização; nenhuma senha de usuário é pedida ou gravada. O assistente pede o issuer, o client ID e os e-mails autorizados (veja docs/login-sso.md). O arquivo local-settings.ps1 guarda só essa configuração e uma chave aleatória da sessão; ele é ignorado pelo Git.
 
 PASSO 4 — INICIE E CONSULTE
 No PowerShell, na pasta do projeto, execute:
@@ -58,11 +60,11 @@ PASSO 5 — SE DER ERRO
 Para encerrar, volte ao PowerShell do app e pressione Ctrl+C. A porta COM será liberada pelo aplicativo.
 
 ACESSO PRIVADO DE OUTRO LOCAL (OPCIONAL)
-Depois que a consulta local funcionar, mantenha esse computador ligado, com o cabo ligado ao switch e o Tailscale conectado à sua tailnet. Inicie o Quidway Manager; em outro PowerShell, execute .\enable-tailnet.ps1 e siga o endereço privado HTTPS mostrado pelo Tailscale. O outro dispositivo precisa estar autenticado na mesma tailnet. Não use Tailscale Funnel e não abra portas no roteador.
+Depois que a consulta local funcionar, mantenha esse computador ligado, com o cabo ligado ao switch e o Tailscale conectado à sua tailnet. Inicie o Switch Manager; em outro PowerShell, execute .\enable-tailnet.ps1 e siga o endereço privado HTTPS mostrado pelo Tailscale. O outro dispositivo precisa estar autenticado na mesma tailnet. Não use Tailscale Funnel e não abra portas no roteador.
 
 RESUMO
 - Acesso serial pelo terminal do usuário: observado em COM9/9600. O coletor do Manager ainda não foi confirmado no switch.
-- Porta COM9 e velocidade 9600: indicadas pela sessão salva do MobaXterm e usadas no terminal.
+- Porta COM9 e velocidade 9600: indicadas pela sessão salva do MobaXterm e usadas no terminal. Desde 23/11/2026 a velocidade é 115200 nos dois switches.
 - Compatibilidade das consultas no Manager: pendente de execução e verificação no equipamento. Interpretação dos dados e demais recursos também continuam pendentes.
 - SSH: a saída observada indica SSH 1.5; o app não aceita nem habilita algoritmos SSH legados. A conexão SSHv2 só deve ser considerada após confirmação específica do firmware.
 - Nenhum comando de configuração foi executado no switch.

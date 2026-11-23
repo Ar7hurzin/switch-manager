@@ -1,15 +1,16 @@
 # Switch Manager
 
-Painel local em português para observar e configurar, de forma controlada, um switch Huawei Switch S3900. A versão atual oferece demonstração, leitura SSHv2 e conexão serial. O usuário confirmou pelo terminal serial o Switch 3900-SI 28-Port, VRP 3.10(CN), com COM9 a 9600 baud e executou consultas de leitura; a coleta serial pelo Manager e a compatibilidade dos comandos de alteração ainda não foram validadas neste release.
+Painel local em português para observar e configurar, de forma controlada, switches Huawei antigos (VRP 3 / Comware 3) pelo console serial. O switch conectado é identificado sozinho e o painel se adapta a ele (veja [switches suportados](docs/switches-suportados.md)). A versão atual oferece demonstração, simuladores (S3900, S3026C e 3Com 4500), leitura SSHv2 e monitoramento contínuo pelo console serial. O perfil físico validado é Quidway 3900-SI 28-Port, VRP 3.10(CN) RELEASE 0002. As correções locais são testadas com respostas simuladas e não comprovam compatibilidade física de novos comandos de escrita nesse release.
 
 ## O que funciona
 
 - Painel web com visão geral, mapa conceitual de portas, VLANs e diagnóstico.
 - Áreas separadas pela navegação principal: Dashboard em `/`, Sistema em `/sistema`, Monitoramento em `/monitoramento`, Configuração em `/configuracao` e CLI em `/cli`. As páginas reutilizam a mesma estrutura visual, mas mostram conteúdos diferentes.
-- Login local com sessões de usuários ativos no Dashboard. A lista usa atividade recente e expira o indicador após cinco minutos sem requisições; a contagem de dispositivos do switch fica indisponível até validar a leitura MAC/porta neste firmware.
+- Login SSO com sessões de usuários ativos no Dashboard. A lista usa atividade recente e expira o indicador após cinco minutos sem requisições; o painel mostra MACs aprendidos quando a resposta é reconhecida, com horário e indicação de dados antigos; MACs não são uma contagem de pessoas ou prova de conexão ativa.
 - Demonstração claramente identificada; os valores de exemplo não vêm de um equipamento.
 - Modo SSH configurável com validação estrita da chave conhecida. O único conjunto permitido é `display version` e `display vlan`.
-- Modo serial local implementado para enviar somente `display version` e `display vlan`; requer fechar Tera Term/MobaXterm antes da coleta. O console serial e essas respostas foram observados no terminal do usuário, não verificados pelo Manager nesta sessão.
+- **Detecção automática do switch pelo console:** ao conectar o cabo, o painel identifica switches Huawei antigos (VRP 3), Huawei-3Com e 3Com (Comware 3), descobre as portas e se adapta sozinho. O S3900-SI tem configuração guiada validada. Os demais VRP 3 / Comware 3 recebem configuração guiada adaptada, e uma operação que o switch recusar passa a ser feita pela CLI naquele modelo. Sistemas incompatíveis usam só a CLI. Veja [switches suportados](docs/switches-suportados.md).
+- Modo serial com consultas fixas de identificação, inventário/detalhes de VLAN, interfaces e tabela MAC. O monitor em segundo plano respeita a exclusividade da CLI; feche outros terminais que usem o mesmo console. Veja [ritmo e fidelidade dos dados](docs/monitoramento-continuo-local.md).
 - Área Configuração com prévia de comandos para VLANs, portas access/trunk/hybrid, estado/descrição de porta, nome do switch, IP de gestão, backup e salvamento.
 - Aplicação de mudanças por série serial usa operações tipadas, prévia de cada plano e verificação do modelo/release antes de enviar. Depois da prévia, um clique explícito aplica a operação. Gravações ficam desabilitadas por padrão por `QM_ENABLE_CONFIG_WRITES=false`.
 - Verificação estrita de chave SSH conhecida. Chave nova ou alterada é rejeitada.
@@ -18,23 +19,28 @@ Painel local em português para observar e configurar, de forma controlada, um s
 
 ## O que ainda depende de conhecer o switch
 
-As gravações são baseadas no manual de comandos da série S3900 Release 1510. O aparelho observado no terminal usa VRP 3.10(CN) RELEASE 0002, portanto a coleta serial pelo Manager e a sintaxe de escrita ainda precisam ser verificadas nesse release; gravações permanecem bloqueadas por padrão. Recursos avançados como AAA/SSH, STP, QoS, ACLs, roteamento, DHCP, SNMP e agregação ainda não têm interface de escrita. O mapa de portas e gráficos também não são preenchidos automaticamente. O SSH observado informou versão 1.5; não habilitamos suporte a protocolo legado.
+As gravações são baseadas no manual de comandos da série S3900 Release 1510. O aparelho observado no terminal usa VRP 3.10(CN) RELEASE 0002, portanto a coleta serial pelo Manager e a sintaxe de escrita ainda precisam ser verificadas nesse release; gravações permanecem bloqueadas por padrão. Recursos avançados como AAA/SSH, STP, QoS, ACLs, roteamento, DHCP, SNMP e agregação ainda não têm interface de escrita. O mapa de portas e a tabela de taxas são preenchidos por consultas reconhecidas. Captura Ethernet/PCAP e gráficos históricos no estilo Wireshark ainda não estão implementados. O SSH observado informou versão 1.5; não habilitamos suporte a protocolo legado.
 
 ## Iniciar
 
-Na primeira execução, abra a pasta `SwitchManager` no VS Code. No terminal PowerShell dessa pasta, configure o login local:
+Para os comandos de uso diário e instalação em cada sistema, consulte [Comandos rápidos](docs/comandos-rapidos.md).
+
+A interface **Quidway Light** usa tema claro e o mesmo endereço local. Há um inicializador Python compartilhado para Windows/Linux; consulte [instalação nativa e Docker](docs/instalacao-docker.md) para comandos de instalação, autenticação, Docker Compose e limitações.
+
+
+Na primeira execução, abra a pasta `switch-manager` no VS Code. No terminal PowerShell dessa pasta, configure o login SSO:
 
 ```powershell
 .\configure-login.ps1
 ```
 
-Escolha um usuário e uma senha com pelo menos 12 caracteres. A senha é digitada sem aparecer na tela; o arquivo `local-settings.ps1` recebe somente o hash PBKDF2, uma chave de sessão aleatória e o nome de usuário. Esse arquivo está ignorado pelo Git. Depois inicie o app:
+O login é feito por **SSO (OpenID Connect) com autenticação de dois fatores** no provedor da organização (Entra ID, Keycloak, Authentik…). Nenhuma senha de usuário é pedida ou gravada. O assistente pede o issuer, o client ID, os e-mails autorizados e a redirect URI a cadastrar no provedor. O arquivo `local-settings.ps1`, ignorado pelo Git, recebe só essas informações e uma chave de sessão aleatória. Veja [login SSO com 2FA](docs/login-sso.md). Depois inicie o app:
 
 ```powershell
 .\start.ps1
 ```
 
-O script prepara as bibliotecas na primeira execução e inicia o servidor. Abra `http://127.0.0.1:8787` no navegador e entre com a conta que criou. A sessão expira em oito horas; use **Sair** para encerrá-la antes. Deixe a janela do terminal aberta enquanto usar o app; pressione `Ctrl+C` para encerrá-lo. Se o app já estiver rodando, o script verifica se a versão ativa exige login antes de reutilizá-la.
+O script prepara as bibliotecas na primeira execução e inicia o servidor. Abra `http://127.0.0.1:8787` no navegador e clique em **Entrar com SSO**. A sessão expira em oito horas; use **Sair** para revogá-la imediatamente no servidor. Reiniciar o servidor ou reconfigurar o login exige entrar novamente. O registro de autorização é separado da presença recente de cinco minutos e requer a execução em um único processo, como no inicializador fornecido. Deixe a janela do terminal aberta enquanto usar o app; pressione `Ctrl+C` para encerrá-lo. Se o app já estiver rodando, o script verifica se a versão ativa exige login antes de reutilizá-la.
 
 ## Acesso privado remoto pelo Tailscale
 
@@ -51,15 +57,15 @@ Consulte a documentação oficial de [Tailscale Serve](https://tailscale.com/doc
 
 ## Leitura pelo console serial
 
-Mantenha o computador conectado ao switch pelo cabo console. Confirme a porta COM no Gerenciador de Dispositivos e configure a velocidade igual à usada pelo terminal. O exemplo inicia com COM9 e 9600 baud, valores que ainda precisam ser conferidos. Feche Tera Term/MobaXterm para liberar a porta, copie `local-settings.example.ps1` para `local-settings.ps1` e habilite:
+Mantenha o computador conectado ao switch pelo cabo console. Confirme a porta COM no Gerenciador de Dispositivos e configure a velocidade igual à usada pelo terminal. O exemplo inicia com COM9 e 115200 baud, velocidade configurada no console do S3900 e do S3000 em 23/11/2026 (o padrão de fábrica é 9600); confira a porta COM. Feche Tera Term/MobaXterm para liberar a porta, copie `local-settings.example.ps1` para `local-settings.ps1` e habilite:
 
 ```powershell
 $env:QM_MODE = 'serial'
 $env:QM_SERIAL_PORT = 'COM9'
-$env:QM_SERIAL_BAUD = '9600'
+$env:QM_SERIAL_BAUD = '115200'
 ```
 
-Inicie com `.\start.ps1` e use **Atualizar leitura**. O primeiro uso instala PySerial pelo `requirements.txt`. O Tailscale pode compartilhar o painel com a tailnet, mas o computador hospedeiro precisa ficar ligado e fisicamente conectado ao switch. A porta serial não é transportada para outro computador pelo Tailscale.
+Inicie com `.\start.ps1` no Windows ou `.venv/bin/python start.py` no Fedora. No modo serial a coleta é automática; a página consulta o cache e oculta o botão **Atualizar leitura**. O primeiro uso instala PySerial pelo `requirements.txt`. O Tailscale pode compartilhar o painel com a tailnet, mas o computador hospedeiro precisa ficar ligado e fisicamente conectado ao switch. A porta serial não é transportada para outro computador pelo Tailscale.
 
 ## Área Configuração
 
@@ -71,7 +77,7 @@ As mudanças entram primeiro na configuração em execução do switch; salvar �
 
 A rota `/cli` oferece um terminal interativo do console serial. Clique em **Conectar ao console** para abrir a COM configurada; depois digite uma única linha e pressione Enter ou **Enviar**. O app não envia comandos de configuração ao conectar; envia apenas uma linha vazia para acordar o prompt. Cada comando digitado é transmitido imediatamente. Saídas com prompts `More` são paginadas automaticamente; confirme a resposta exibida antes de prosseguir. **Enviar Enter** atende prompts que aguardam uma linha vazia.
 
-A aba CLI é um terminal de uso direto, sem prévia, backup automático ou rollback. Ela ignora `QM_ENABLE_CONFIG_WRITES=false`, que bloqueia apenas a área guiada; portanto, comandos configuradores enviados por CLI são executados mesmo com essa variável desligada. Use a área guiada para operações tipadas quando ela cobrir a tarefa. Comandos e respostas não são persistidos pela aplicação, mas podem ficar visíveis na tela do navegador até limpar a saída ou fechar a aba; a resposta do switch pode conter credenciais/hashes. Entradas são ocultadas quando o Manager detecta prompts/comandos com termos comuns de senha, mas essa detecção não cobre todos os formatos. A sessão serial é exclusiva, fecha explicitamente, no encerramento da aba ou após 20 minutos sem atividade. Enquanto ativa, monitoramento, backup e aplicação guiada são bloqueados para evitar disputa pela porta. O app não habilita SSH 1.5; o terminal integrado usa somente a porta console local e pode ser acessado remotamente pelo painel privado na tailnet.
+A aba CLI é um terminal de uso direto, sem prévia, backup automático ou rollback. A conexão CLI é desabilitada por padrão (`QM_ENABLE_CLI=false`). Após validação e autorização explícita, `QM_ENABLE_CLI=true` permite acesso ao terminal; ele não filtra comandos de configuração, mesmo se a escrita guiada permanecer bloqueada. Use a área guiada para operações tipadas quando ela cobrir a tarefa. Comandos e respostas não são persistidos pela aplicação, mas podem ficar visíveis na tela do navegador até limpar a saída ou fechar a aba; a resposta do switch pode conter credenciais/hashes. Entradas são ocultadas quando o Manager detecta prompts/comandos com termos comuns de senha, mas essa detecção não cobre todos os formatos. A sessão serial é exclusiva, fecha explicitamente ou após 20 minutos sem atividade. A saída da página tenta encerrá-la; se não houver confirmação, o token é preservado para recuperação e nova tentativa. O logout também tenta fechar a CLI pertencente à sessão. Enquanto ativa, monitoramento, backup e aplicação guiada são bloqueados para evitar disputa pela porta. O app não habilita SSH 1.5; o terminal integrado usa somente a porta console local e pode ser acessado remotamente pelo painel privado na tailnet.
 
 ## Preparar SSHv2 quando o switch estiver disponível
 
@@ -94,14 +100,16 @@ Feche e inicie novamente o app após alterar configurações. No modo SSH, use *
 
 ## Limites de segurança
 
-- A interface não aceita comandos livres. As operações tipadas de configuração só podem ser enviadas quando `QM_ENABLE_CONFIG_WRITES=true`; por padrão, a gravação permanece bloqueada.
-- Todas as páginas e APIs de operação exigem login local. A sessão usa cookie HTTP-only, proteção CSRF e expira após oito horas. O endpoint de saúde fica público apenas para o script local verificar se o serviço iniciou.
-- Mantenha o servidor em `127.0.0.1`; o acesso remoto é intermediado pelo Tailscale Serve.
+- A área de configuração guiada não aceita comandos livres; a CLI tem habilitação separada. As operações tipadas de configuração só podem ser enviadas quando `QM_ENABLE_CONFIG_WRITES=true`; por padrão, a gravação permanece bloqueada.
+- Todas as páginas e APIs de operação exigem login SSO (OpenID Connect) com 2FA comprovado no token e e-mail na allowlist; nenhuma senha é armazenada. A sessão usa cookie HttpOnly, SameSite=Lax, proteção CSRF e expira após oito horas. O login limita tentativas por endereço de origem; sob proxy os usuários podem compartilhar esse limite. Quando o painel é aberto por HTTPS (por exemplo, pelo Tailscale Serve em `*.ts.net`), o cookie de sessão recebe `Secure` automaticamente; o acesso HTTP local em 127.0.0.1 continua funcionando. `QM_HTTPS_ONLY=true` força `Secure` em todos os acessos (não habilite se usar o HTTP local). O endpoint de saúde fica público apenas para o script local verificar se o serviço iniciou.
+- Mantenha o servidor nativo em `127.0.0.1`; Docker usa porta interna publicada somente no loopback do host. O acesso remoto privado é intermediado pelo Tailscale Serve.
 - As regras de acesso da tailnet continuam sendo uma camada necessária; limite o acesso aos seus dispositivos/usuários autorizados.
 - Não crie encaminhamento de porta no roteador nem publique o painel com Tailscale Funnel.
 - Não considere a compatibilidade, backup, monitoramento ou recuperação confirmados até validar o equipamento real.
 
 ## Documentação
+
+- [Instalação Windows, Fedora e Docker (passo a passo)](docs/instalacao-docker.md)
 
 - [Como conectar e usar (TXT)](docs/como-conectar-e-usar.txt)
 - [Módulo de configuração pela interface](docs/configuracao-interface.md)
@@ -113,4 +121,17 @@ Feche e inicie novamente o app após alterar configurações. No modo SSH, use *
 
 ## Arquivo histórico
 
-O diretório `archives/` guarda o ZIP de código exportado anteriormente. Ele pode estar defasado em relação à versão atual do projeto; o conteúdo atualizado está nos arquivos versionados na raiz e em `static/` e `docs/`.
+O diretório `archives/` guarda o ZIP de código exportado anteriormente, de quando o projeto ainda se chamava Quidway Manager. Ele pode estar defasado em relação à versão atual do projeto; o conteúdo atualizado está nos arquivos versionados na raiz e em `static/` e `docs/`.
+
+## Correções e validação local
+
+As sete falhas da revisão de 16/11 foram tratadas nesta cópia local. Leia [correções e critérios de validação](docs/correcoes-2026-11.md) antes de habilitar escrita física. As versões exercitadas estão em `constraints.txt`, aplicado pelo `requirements.txt`; a compatibilidade entre plataformas continua sendo verificada pela matriz de testes. Não é necessário reinstalar o ambiente a cada alteração de código.
+
+```bash
+.venv/bin/python -m unittest discover -s tests -v
+node --check static/app.js
+node --test tests/frontend*.cjs
+.venv/bin/python -m pip check
+```
+
+A segunda rodada de revisão também foi corrigida: recuperação da identificação inicial, listas multilinha, fila de VLANs, identificação de interface, validade dos registros de laboratório e concorrência da CLI/prévias. Veja [segunda rodada de correções](docs/segunda-correcao-2026-11-17.md). Prévias trunk/hybrid agora consultam o modo atual pelo console e exigem que a CLI esteja fechada.

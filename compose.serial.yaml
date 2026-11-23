@@ -1,0 +1,11 @@
+# Linux only. Confirm the real device and its numeric group ID before enabling.
+services:
+  app:
+    environment:
+      QM_MODE: serial
+      QM_SERIAL_PORT: /dev/ttyUSB0
+      QM_SERIAL_BAUD: "${QM_SERIAL_BAUD:-9600}"
+    devices:
+      - "${QM_SERIAL_DEVICE:-/dev/ttyUSB0}:/dev/ttyUSB0"
+    group_add:
+      - "${QM_SERIAL_GID:?Set QM_SERIAL_GID to the numeric group of the serial device}"

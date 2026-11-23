@@ -11,6 +11,6 @@ if (-not (Test-Path $python)) {
 }
 
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "Configuração não concluída (código $LASTEXITCODE). Leia a mensagem do assistente acima; a senha deve ter pelo menos 12 caracteres e ser digitada igual nas duas confirmações." -ForegroundColor Red
+    Write-Host "Configuração não concluída (código $LASTEXITCODE). Leia a mensagem do assistente acima: confira o issuer (https), o client ID e os e-mails autorizados." -ForegroundColor Red
     return
 }

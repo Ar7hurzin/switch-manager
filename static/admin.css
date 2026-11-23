@@ -1,0 +1,18 @@
+.admin-main{max-width:960px}
+.admin-card{padding:20px 22px;margin-bottom:16px}
+.admin-card .panel-note{font-size:12.5px;margin:8px 0 0}
+.admin-card code{background:#edf2f7;border-radius:4px;padding:1px 5px}
+.admin-add{display:grid;gap:8px;margin-top:10px}
+.admin-add label{font-size:12px;color:#17324d;font-weight:600}
+.admin-add-row{display:flex;gap:10px}
+.admin-add-row input{flex:1;min-width:0;padding:10px 12px;border:1px solid #cbd6e1;border-radius:7px;font:14px var(--font);color:#17324d;background:#fff}
+.admin-add-row input:focus{outline:2px solid #0067b8;outline-offset:1px}
+.admin-message{min-height:18px;margin:10px 0 0;font-size:12.5px}
+.admin-message.error{color:#ad2938}
+.admin-message.ok{color:#165c35}
+.admin-card table{width:100%;margin-top:10px}
+.admin-card td .button{min-height:30px;padding:4px 10px;font-size:12px}
+.admin-badge{display:inline-block;border-radius:999px;padding:2px 8px;font-size:10px;font-weight:700;letter-spacing:.5px;background:#e8eff6;color:#36536d}
+.admin-badge.admin{background:#e6f2fb;color:#005596}
+.admin-actions{display:flex;gap:6px;justify-content:flex-end}
+.admin-actions .button-primary{min-height:30px;padding:4px 12px;font-size:12px}

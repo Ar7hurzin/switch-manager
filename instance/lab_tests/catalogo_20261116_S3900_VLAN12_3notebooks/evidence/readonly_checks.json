@@ -1,0 +1,148 @@
+{
+  "addresses": {
+    "started_at": "2026-11-16T16:03:06.536147-03:00",
+    "finished_at": "2026-11-16T16:03:06.543933-03:00",
+    "command": [
+      "ip",
+      "-j",
+      "address",
+      "show"
+    ],
+    "returncode": 0,
+    "stdout": "[{\"ifindex\":1,\"ifname\":\"lo\",\"flags\":[\"LOOPBACK\",\"UP\",\"LOWER_UP\"],\"mtu\":65536,\"qdisc\":\"noqueue\",\"operstate\":\"UNKNOWN\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"loopback\",\"address\":\"00:00:00:00:00:00\",\"broadcast\":\"00:00:00:00:00:00\",\"addr_info\":[{\"family\":\"inet\",\"local\":\"127.0.0.1\",\"prefixlen\":8,\"scope\":\"host\",\"label\":\"lo\",\"valid_life_time\":4294967295,\"preferred_life_time\":4294967295},{\"family\":\"inet6\",\"local\":\"::1\",\"prefixlen\":128,\"scope\":\"host\",\"noprefixroute\":true,\"valid_life_time\":4294967295,\"preferred_life_time\":4294967295}]},{\"ifindex\":2,\"ifname\":\"enp0s31f6\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"fq_codel\",\"operstate\":\"UP\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"a4:4c:c8:35:7a:0e\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"altnames\":[\"enxa44cc8357a0e\"],\"addr_info\":[{\"family\":\"inet\",\"local\":\"10.42.0.1\",\"prefixlen\":24,\"broadcast\":\"10.42.0.255\",\"scope\":\"global\",\"noprefixroute\":true,\"label\":\"enp0s31f6\",\"valid_life_time\":4294967295,\"preferred_life_time\":4294967295}]},{\"ifindex\":3,\"ifname\":\"wlp2s0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"noqueue\",\"operstate\":\"UP\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"52:68:d6:a0:62:01\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"permaddr\":\"b0:52:16:ff:cb:05\",\"altnames\":[\"wlxb05216ffcb05\"],\"addr_info\":[{\"family\":\"inet\",\"local\":\"192.168.1.100\",\"prefixlen\":24,\"broadcast\":\"192.168.1.255\",\"scope\":\"global\",\"dynamic\":true,\"noprefixroute\":true,\"label\":\"wlp2s0\",\"valid_life_time\":3834,\"preferred_life_time\":3834},{\"family\":\"inet6\",\"local\":\"fe80::ec3:79c4:34f9:132a\",\"prefixlen\":64,\"scope\":\"link\",\"noprefixroute\":true,\"valid_life_time\":4294967295,\"preferred_life_time\":4294967295}]}]\n",
+    "stderr": ""
+  },
+  "routes": {
+    "started_at": "2026-11-16T16:03:06.536310-03:00",
+    "finished_at": "2026-11-16T16:03:06.549208-03:00",
+    "command": [
+      "ip",
+      "-j",
+      "route",
+      "show"
+    ],
+    "returncode": 0,
+    "stdout": "[{\"dst\":\"default\",\"gateway\":\"192.168.1.1\",\"dev\":\"wlp2s0\",\"protocol\":\"dhcp\",\"prefsrc\":\"192.168.1.100\",\"metric\":600,\"flags\":[]},{\"dst\":\"10.42.0.0/24\",\"dev\":\"enp0s31f6\",\"protocol\":\"kernel\",\"scope\":\"link\",\"prefsrc\":\"10.42.0.1\",\"metric\":100,\"flags\":[]},{\"dst\":\"192.168.1.0/24\",\"dev\":\"wlp2s0\",\"protocol\":\"kernel\",\"scope\":\"link\",\"prefsrc\":\"192.168.1.100\",\"metric\":600,\"flags\":[]}]\n",
+    "stderr": ""
+  },
+  "neighbors": {
+    "started_at": "2026-11-16T16:03:06.536738-03:00",
+    "finished_at": "2026-11-16T16:03:06.552576-03:00",
+    "command": [
+      "ip",
+      "-j",
+      "neigh",
+      "show"
+    ],
+    "returncode": 0,
+    "stdout": "[{\"dst\":\"10.42.0.75\",\"dev\":\"enp0s31f6\",\"lladdr\":\"08:8f:c3:98:1e:b3\",\"state\":[\"REACHABLE\"]},{\"dst\":\"192.168.1.1\",\"dev\":\"wlp2s0\",\"lladdr\":\"38:6b:1c:86:71:6b\",\"state\":[\"REACHABLE\"]},{\"dst\":\"192.168.1.108\",\"dev\":\"wlp2s0\",\"lladdr\":\"b8:ab:62:13:53:91\",\"state\":[\"STALE\"]},{\"dst\":\"10.42.0.155\",\"dev\":\"enp0s31f6\",\"lladdr\":\"74:86:7a:f5:9a:66\",\"state\":[\"DELAY\"]}]\n",
+    "stderr": ""
+  },
+  "shared": {
+    "started_at": "2026-11-16T16:03:06.537042-03:00",
+    "finished_at": "2026-11-16T16:03:06.576120-03:00",
+    "command": [
+      "nmcli",
+      "-g",
+      "ipv4.method,ipv4.addresses,ipv4.gateway",
+      "connection",
+      "show",
+      "S3900-INTERNET"
+    ],
+    "returncode": 0,
+    "stdout": "shared\n10.42.0.1/24\n\n",
+    "stderr": ""
+  },
+  "forwarding": {
+    "started_at": "2026-11-16T16:03:06.537644-03:00",
+    "finished_at": "2026-11-16T16:03:06.553865-03:00",
+    "command": [
+      "sysctl",
+      "net.ipv4.ip_forward",
+      "net.ipv4.conf.enp0s31f6.forwarding",
+      "net.ipv4.conf.wlp2s0.forwarding"
+    ],
+    "returncode": 0,
+    "stdout": "net.ipv4.ip_forward = 0\nnet.ipv4.conf.enp0s31f6.forwarding = 1\nnet.ipv4.conf.wlp2s0.forwarding = 1\n",
+    "stderr": ""
+  },
+  "leases": {
+    "started_at": "2026-11-16T16:03:06.539858-03:00",
+    "finished_at": "2026-11-16T16:03:06.565089-03:00",
+    "command": [
+      "sudo",
+      "-n",
+      "cat",
+      "/var/lib/NetworkManager/dnsmasq-enp0s31f6.leases"
+    ],
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "sudo: uma senha é necessária\n"
+  },
+  "dns": {
+    "started_at": "2026-11-16T16:03:06.540822-03:00",
+    "finished_at": "2026-11-16T16:03:06.556170-03:00",
+    "command": [
+      "getent",
+      "ahostsv4",
+      "youtube.com"
+    ],
+    "returncode": 0,
+    "stdout": "142.251.128.110 STREAM youtube.com\n142.251.128.110 DGRAM  \n142.251.128.110 RAW    \n",
+    "stderr": ""
+  },
+  "ping_10.42.0.75": {
+    "started_at": "2026-11-16T16:03:06.544012-03:00",
+    "finished_at": "2026-11-16T16:03:12.334796-03:00",
+    "command": [
+      "ping",
+      "-n",
+      "-c",
+      "20",
+      "-i",
+      "0.3",
+      "-W",
+      "1",
+      "10.42.0.75"
+    ],
+    "returncode": 0,
+    "stdout": "PING 10.42.0.75 (10.42.0.75) 56(84) bytes de dados.\n64 bytes de 10.42.0.75: icmp_seq=1 ttl=64 tempo=0.315 ms\n64 bytes de 10.42.0.75: icmp_seq=2 ttl=64 tempo=0.539 ms\n64 bytes de 10.42.0.75: icmp_seq=3 ttl=64 tempo=0.422 ms\n64 bytes de 10.42.0.75: icmp_seq=4 ttl=64 tempo=0.560 ms\n64 bytes de 10.42.0.75: icmp_seq=5 ttl=64 tempo=0.338 ms\n64 bytes de 10.42.0.75: icmp_seq=6 ttl=64 tempo=0.519 ms\n64 bytes de 10.42.0.75: icmp_seq=7 ttl=64 tempo=0.397 ms\n64 bytes de 10.42.0.75: icmp_seq=8 ttl=64 tempo=0.525 ms\n64 bytes de 10.42.0.75: icmp_seq=9 ttl=64 tempo=0.684 ms\n64 bytes de 10.42.0.75: icmp_seq=10 ttl=64 tempo=0.573 ms\n64 bytes de 10.42.0.75: icmp_seq=11 ttl=64 tempo=0.578 ms\n64 bytes de 10.42.0.75: icmp_seq=12 ttl=64 tempo=0.483 ms\n64 bytes de 10.42.0.75: icmp_seq=13 ttl=64 tempo=0.396 ms\n64 bytes de 10.42.0.75: icmp_seq=14 ttl=64 tempo=0.697 ms\n64 bytes de 10.42.0.75: icmp_seq=15 ttl=64 tempo=0.328 ms\n64 bytes de 10.42.0.75: icmp_seq=16 ttl=64 tempo=0.572 ms\n64 bytes de 10.42.0.75: icmp_seq=17 ttl=64 tempo=0.532 ms\n64 bytes de 10.42.0.75: icmp_seq=18 ttl=64 tempo=0.546 ms\n64 bytes de 10.42.0.75: icmp_seq=19 ttl=64 tempo=0.566 ms\n64 bytes de 10.42.0.75: icmp_seq=20 ttl=64 tempo=0.549 ms\n\n--- 10.42.0.75 estatísticas de ping ---\n20 pacotes transmitidos, 20 recebidos, 0% packet loss, time 5780ms\nrtt min/avg/max/mdev = 0.315/0.505/0.697/0.105 ms\n",
+    "stderr": ""
+  },
+  "ping_10.42.0.155": {
+    "started_at": "2026-11-16T16:03:06.552935-03:00",
+    "finished_at": "2026-11-16T16:03:12.334920-03:00",
+    "command": [
+      "ping",
+      "-n",
+      "-c",
+      "20",
+      "-i",
+      "0.3",
+      "-W",
+      "1",
+      "10.42.0.155"
+    ],
+    "returncode": 0,
+    "stdout": "PING 10.42.0.155 (10.42.0.155) 56(84) bytes de dados.\n64 bytes de 10.42.0.155: icmp_seq=1 ttl=64 tempo=0.337 ms\n64 bytes de 10.42.0.155: icmp_seq=2 ttl=64 tempo=0.539 ms\n64 bytes de 10.42.0.155: icmp_seq=3 ttl=64 tempo=0.408 ms\n64 bytes de 10.42.0.155: icmp_seq=4 ttl=64 tempo=0.563 ms\n64 bytes de 10.42.0.155: icmp_seq=5 ttl=64 tempo=0.535 ms\n64 bytes de 10.42.0.155: icmp_seq=6 ttl=64 tempo=0.524 ms\n64 bytes de 10.42.0.155: icmp_seq=7 ttl=64 tempo=0.419 ms\n64 bytes de 10.42.0.155: icmp_seq=8 ttl=64 tempo=0.540 ms\n64 bytes de 10.42.0.155: icmp_seq=9 ttl=64 tempo=0.323 ms\n64 bytes de 10.42.0.155: icmp_seq=10 ttl=64 tempo=0.573 ms\n64 bytes de 10.42.0.155: icmp_seq=11 ttl=64 tempo=0.321 ms\n64 bytes de 10.42.0.155: icmp_seq=12 ttl=64 tempo=0.483 ms\n64 bytes de 10.42.0.155: icmp_seq=13 ttl=64 tempo=0.579 ms\n64 bytes de 10.42.0.155: icmp_seq=14 ttl=64 tempo=0.697 ms\n64 bytes de 10.42.0.155: icmp_seq=15 ttl=64 tempo=0.322 ms\n64 bytes de 10.42.0.155: icmp_seq=16 ttl=64 tempo=0.576 ms\n64 bytes de 10.42.0.155: icmp_seq=17 ttl=64 tempo=0.534 ms\n64 bytes de 10.42.0.155: icmp_seq=18 ttl=64 tempo=0.556 ms\n64 bytes de 10.42.0.155: icmp_seq=19 ttl=64 tempo=0.536 ms\n64 bytes de 10.42.0.155: icmp_seq=20 ttl=64 tempo=0.561 ms\n\n--- 10.42.0.155 estatísticas de ping ---\n20 pacotes transmitidos, 20 recebidos, 0% packet loss, time 5776ms\nrtt min/avg/max/mdev = 0.321/0.496/0.697/0.102 ms\n",
+    "stderr": ""
+  },
+  "ping_8.8.8.8": {
+    "started_at": "2026-11-16T16:03:06.549413-03:00",
+    "finished_at": "2026-11-16T16:03:12.307119-03:00",
+    "command": [
+      "ping",
+      "-n",
+      "-c",
+      "20",
+      "-i",
+      "0.3",
+      "-W",
+      "1",
+      "8.8.8.8"
+    ],
+    "returncode": 0,
+    "stdout": "PING 8.8.8.8 (8.8.8.8) 56(84) bytes de dados.\n64 bytes de 8.8.8.8: icmp_seq=1 ttl=112 tempo=37.9 ms\n64 bytes de 8.8.8.8: icmp_seq=2 ttl=112 tempo=37.1 ms\n64 bytes de 8.8.8.8: icmp_seq=3 ttl=112 tempo=52.5 ms\n64 bytes de 8.8.8.8: icmp_seq=4 ttl=112 tempo=36.9 ms\n64 bytes de 8.8.8.8: icmp_seq=5 ttl=112 tempo=36.9 ms\n64 bytes de 8.8.8.8: icmp_seq=6 ttl=112 tempo=38.0 ms\n64 bytes de 8.8.8.8: icmp_seq=7 ttl=112 tempo=42.7 ms\n64 bytes de 8.8.8.8: icmp_seq=8 ttl=112 tempo=36.7 ms\n64 bytes de 8.8.8.8: icmp_seq=9 ttl=112 tempo=36.9 ms\n64 bytes de 8.8.8.8: icmp_seq=10 ttl=112 tempo=53.7 ms\n64 bytes de 8.8.8.8: icmp_seq=11 ttl=112 tempo=37.0 ms\n64 bytes de 8.8.8.8: icmp_seq=12 ttl=112 tempo=37.3 ms\n64 bytes de 8.8.8.8: icmp_seq=13 ttl=112 tempo=36.8 ms\n64 bytes de 8.8.8.8: icmp_seq=14 ttl=112 tempo=44.5 ms\n64 bytes de 8.8.8.8: icmp_seq=15 ttl=112 tempo=36.6 ms\n64 bytes de 8.8.8.8: icmp_seq=16 ttl=112 tempo=36.3 ms\n64 bytes de 8.8.8.8: icmp_seq=17 ttl=112 tempo=37.0 ms\n64 bytes de 8.8.8.8: icmp_seq=18 ttl=112 tempo=37.7 ms\n64 bytes de 8.8.8.8: icmp_seq=19 ttl=112 tempo=38.2 ms\n64 bytes de 8.8.8.8: icmp_seq=20 ttl=112 tempo=38.3 ms\n\n--- 8.8.8.8 estatísticas de ping ---\n20 pacotes transmitidos, 20 recebidos, 0% packet loss, time 5713ms\nrtt min/avg/max/mdev = 36.256/39.444/53.708/4.971 ms\n",
+    "stderr": ""
+  }
+}

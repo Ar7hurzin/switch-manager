@@ -1,0 +1,327 @@
+{
+  "name": "S3900-Virtual",
+  "vlans": {
+    "1": "default",
+    "100": "laboratorio",
+    "12": "teste_notebook"
+  },
+  "ports": {
+    "1": {
+      "admin": true,
+      "link": true,
+      "mode": "access",
+      "pvid": 1,
+      "tagged": [],
+      "untagged": [
+        1
+      ],
+      "description": ""
+    },
+    "2": {
+      "admin": true,
+      "link": false,
+      "mode": "access",
+      "pvid": 1,
+      "tagged": [],
+      "untagged": [
+        1
+      ],
+      "description": ""
+    },
+    "3": {
+      "admin": true,
+      "link": false,
+      "mode": "access",
+      "pvid": 1,
+      "tagged": [],
+      "untagged": [
+        1
+      ],
+      "description": ""
+    },
+    "4": {
+      "admin": true,
+      "link": true,
+      "mode": "access",
+      "pvid": 100,
+      "tagged": [],
+      "untagged": [
+        100
+      ],
+      "description": ""
+    },
+    "5": {
+      "admin": true,
+      "link": false,
+      "mode": "access",
+      "pvid": 12,
+      "tagged": [],
+      "untagged": [
+        12
+      ],
+      "description": ""
+    },
+    "6": {
+      "admin": true,
+      "link": false,
+      "mode": "access",
+      "pvid": 1,
+      "tagged": [],
+      "untagged": [
+        1
+      ],
+      "description": ""
+    },
+    "7": {
+      "admin": true,
+      "link": false,
+      "mode": "access",
+      "pvid": 1,
+      "tagged": [],
+      "untagged": [
+        1
+      ],
+      "description": ""
+    },
+    "8": {
+      "admin": true,
+      "link": false,
+      "mode": "access",
+      "pvid": 1,
+      "tagged": [],
+      "untagged": [
+        1
+      ],
+      "description": ""
+    },
+    "9": {
+      "admin": true,
+      "link": false,
+      "mode": "access",
+      "pvid": 1,
+      "tagged": [],
+      "untagged": [
+        1
+      ],
+      "description": ""
+    },
+    "10": {
+      "admin": true,
+      "link": false,
+      "mode": "access",
+      "pvid": 1,
+      "tagged": [],
+      "untagged": [
+        1
+      ],
+      "description": ""
+    },
+    "11": {
+      "admin": true,
+      "link": false,
+      "mode": "access",
+      "pvid": 1,
+      "tagged": [],
+      "untagged": [
+        1
+      ],
+      "description": ""
+    },
+    "12": {
+      "admin": true,
+      "link": false,
+      "mode": "access",
+      "pvid": 1,
+      "tagged": [],
+      "untagged": [
+        1
+      ],
+      "description": ""
+    },
+    "13": {
+      "admin": true,
+      "link": false,
+      "mode": "access",
+      "pvid": 1,
+      "tagged": [],
+      "untagged": [
+        1
+      ],
+      "description": ""
+    },
+    "14": {
+      "admin": true,
+      "link": false,
+      "mode": "access",
+      "pvid": 1,
+      "tagged": [],
+      "untagged": [
+        1
+      ],
+      "description": ""
+    },
+    "15": {
+      "admin": true,
+      "link": false,
+      "mode": "access",
+      "pvid": 1,
+      "tagged": [],
+      "untagged": [
+        1
+      ],
+      "description": ""
+    },
+    "16": {
+      "admin": true,
+      "link": false,
+      "mode": "access",
+      "pvid": 1,
+      "tagged": [],
+      "untagged": [
+        1
+      ],
+      "description": ""
+    },
+    "17": {
+      "admin": true,
+      "link": false,
+      "mode": "access",
+      "pvid": 1,
+      "tagged": [],
+      "untagged": [
+        1
+      ],
+      "description": ""
+    },
+    "18": {
+      "admin": true,
+      "link": false,
+      "mode": "access",
+      "pvid": 1,
+      "tagged": [],
+      "untagged": [
+        1
+      ],
+      "description": ""
+    },
+    "19": {
+      "admin": true,
+      "link": false,
+      "mode": "access",
+      "pvid": 1,
+      "tagged": [],
+      "untagged": [
+        1
+      ],
+      "description": ""
+    },
+    "20": {
+      "admin": true,
+      "link": false,
+      "mode": "access",
+      "pvid": 1,
+      "tagged": [],
+      "untagged": [
+        1
+      ],
+      "description": ""
+    },
+    "21": {
+      "admin": true,
+      "link": false,
+      "mode": "access",
+      "pvid": 1,
+      "tagged": [],
+      "untagged": [
+        1
+      ],
+      "description": ""
+    },
+    "22": {
+      "admin": true,
+      "link": false,
+      "mode": "access",
+      "pvid": 1,
+      "tagged": [],
+      "untagged": [
+        1
+      ],
+      "description": ""
+    },
+    "23": {
+      "admin": true,
+      "link": false,
+      "mode": "access",
+      "pvid": 1,
+      "tagged": [],
+      "untagged": [
+        1
+      ],
+      "description": ""
+    },
+    "24": {
+      "admin": true,
+      "link": true,
+      "mode": "access",
+      "pvid": 1,
+      "tagged": [],
+      "untagged": [
+        1
+      ],
+      "description": ""
+    },
+    "25": {
+      "admin": true,
+      "link": true,
+      "mode": "access",
+      "pvid": 1,
+      "tagged": [],
+      "untagged": [
+        1
+      ],
+      "description": ""
+    },
+    "26": {
+      "admin": true,
+      "link": false,
+      "mode": "access",
+      "pvid": 1,
+      "tagged": [],
+      "untagged": [
+        1
+      ],
+      "description": ""
+    },
+    "27": {
+      "admin": true,
+      "link": false,
+      "mode": "access",
+      "pvid": 1,
+      "tagged": [],
+      "untagged": [
+        1
+      ],
+      "description": ""
+    },
+    "28": {
+      "admin": true,
+      "link": false,
+      "mode": "access",
+      "pvid": 1,
+      "tagged": [],
+      "untagged": [
+        1
+      ],
+      "description": ""
+    }
+  },
+  "ips": {
+    "1": {
+      "ip": "192.168.100.1",
+      "mask": "255.255.255.0"
+    }
+  },
+  "routes": [],
+  "last_saved": null,
+  "saved": null
+}

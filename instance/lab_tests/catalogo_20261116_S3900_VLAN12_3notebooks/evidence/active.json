@@ -1,0 +1,16 @@
+{
+  "session_id": "20261116_S3900_VLAN12_3notebooks",
+  "started_utc": "2026-11-16T18:56:06.142763+00:00",
+  "expires_utc": "2026-11-16T19:02:06.142763+00:00",
+  "scenario": "Fedora Wi-Fi to shared Ethernet via S3900 VLAN 12; two Linux YouTube clients",
+  "ports": {
+    "1": "cliente 1",
+    "2": "Fedora roteador",
+    "3": "cliente 2"
+  },
+  "client_ipv4_observed": [
+    "10.42.0.75",
+    "10.42.0.155"
+  ],
+  "evidence_type": "dashboard read-only collector"
+}

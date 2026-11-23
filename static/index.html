@@ -3,49 +3,69 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0a1420">
+  <meta name="theme-color" content="#0079a8">
   <meta name="csrf-token" content="{{ csrf_token }}">
-  <title>Quidway Manager</title>
-  <script>document.documentElement.dataset.page = location.pathname === "/configuracao" ? "configuration" : location.pathname === "/monitoramento" ? "monitoring" : location.pathname === "/sistema" ? "system" : location.pathname === "/cli" ? "cli" : "dashboard";</script>
-  <link rel="stylesheet" href="/static/styles.css?v=20261105-6">
+  <title>Switch Manager</title>
+  <script src="/static/page-kind.js?v=20261121-device-1"></script>
+  <link rel="stylesheet" href="/static/styles.css?v=20261121-nav-1">
 </head>
 <body>
   <div class="frame">
     <aside class="sidebar">
-      <div class="brand"><span class="brand-mark">Q</span><div><strong>Quidway Manager</strong><small>GERENCIAMENTO PRIVADO</small></div></div>
+      <a class="brand" href="/" aria-label="Switch Manager — voltar ao Dashboard"><span class="brand-mark">S</span><div><strong>Switch Manager</strong></div></a>
       <nav class="main-nav" aria-label="Navegação principal">
         <a class="nav-item" data-page-link="dashboard" href="/"><span>◈</span>Dashboard</a>
         <a class="nav-item" data-page-link="configuration" href="/configuracao#configuration"><span>⚙</span>Configuração</a>
         <a class="nav-item" data-page-link="monitoring" href="/monitoramento#ports"><span>▦</span>Switching</a>
         <a class="nav-item" data-page-link="cli" href="/cli"><span>⌨</span>CLI</a>
         <a class="nav-item" data-page-link="system" href="/sistema"><span>▤</span>Sistema</a>
+        <div class="nav-end">
+          {% if is_admin %}<a class="nav-item" href="/admin"><span>⚑</span>Administração{% if pending %} <b class="admin-pending-count" title="Pedidos de acesso pendentes">{{ pending }}</b>{% endif %}</a>{% endif %}
+          <form action="/logout" method="post" class="logout-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="nav-item" type="submit"><span>⇥</span>Sair</button></form>
+        </div>
       </nav>
-      <span class="header-device-tag"><i class="pulse"></i>Quidway 3900-SI</span>
+      <span class="header-device-tag"><i class="pulse"></i><span id="header-device">Switch Huawei</span></span>
     </aside>
 
     <main class="main">
-      <header class="topbar"><div><div id="page-breadcrumb" class="eyebrow">SWITCHES <span>/</span> QUIDWAY 3900-SI</div><h1 id="page-title">Dashboard</h1></div><div class="top-actions"><span id="mode-pill" class="mode-pill">CARREGANDO</span><button id="refresh" class="button button-primary"><span>↻</span> Atualizar leitura</button><form action="/logout" method="post" class="logout-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button button-secondary" type="submit">Sair</button></form></div></header>
+      <header class="topbar"><div><div id="page-breadcrumb" class="eyebrow">SWITCHES <span>/</span> HUAWEI</div><h1 id="page-title">Dashboard</h1></div><div class="top-actions"><span id="mode-pill" class="mode-pill">CARREGANDO</span><span id="live-status" class="subtle-tag" role="status" aria-live="polite">Aguardando monitoramento</span><button id="refresh" class="button button-primary"><span>↻</span> Atualizar leitura</button></div></header>
       <div id="mode-banner" class="mode-banner" role="status"><span class="banner-icon">!</span><span>Carregando o modo da aplicação...</span></div>
-
-      <section id="overview" class="section device-row">
-        <div id="system-info" class="device-card card"><div class="device-icon">▤</div><div class="device-info"><div class="card-overline">EQUIPAMENTO</div><h2 id="device-name">Quidway S3900</h2><p id="device-model">Modelo e firmware aguardam identificação</p></div><div id="connection-state" class="connection-state"><i></i><span>Sem conexão</span></div></div>
-        <div class="mini-card card"><span class="mini-icon teal">◉</span><div class="card-overline">PORTAS COM LINK</div><strong id="ports-count">—</strong><small>Sem leitura do switch</small></div>
-        <div class="mini-card card"><span class="mini-icon violet">⌘</span><div class="card-overline">VLANS CADASTRADAS</div><strong id="vlan-count">—</strong><small>Aguardando coleta</small></div>
-        <div class="mini-card card"><span class="mini-icon amber">◷</span><div class="card-overline">ÚLTIMA COLETA</div><strong id="last-read">—</strong><small>Atualização manual</small></div>
+      <div id="device-banner" class="mode-banner" role="status" hidden></div>
+      <section id="console-login" class="section" hidden>
+        <article class="card panel-card">
+          <div class="panel-head"><div><div class="card-overline">CONSOLE DO SWITCH</div><h2>Login no console</h2></div><span class="subtle-tag">Somente em memória</span></div>
+          <p class="panel-note">Este switch pede usuário e senha no console. Eles ficam só na memória do programa enquanto ele roda: não são gravados em disco nem exibidos. Ao trocar de switch ou recusar o login, são descartados. Se o console pedir login de novo, elas só são reenviadas depois que você confirmar que o cabo continua no mesmo switch.</p>
+          <form id="console-login-form" class="config-form" autocomplete="off">
+            <label>Usuário<input name="username" maxlength="64" autocomplete="off" placeholder="Deixe vazio se só pedir senha"></label>
+            <label>Senha<input name="password" type="password" maxlength="128" autocomplete="off" required></label>
+            <button class="button button-primary" type="submit">Entrar no console</button>
+            <button id="console-confirm" class="button button-secondary" type="button" hidden>Mesmo switch: entrar de novo</button>
+            <button id="console-forget" class="button button-secondary" type="button">Esquecer credenciais</button>
+          </form>
+          <p id="console-login-message" class="config-result" role="status" aria-live="polite"></p>
+        </article>
       </section>
 
+      <section id="overview" class="section device-row">
+        <div id="system-info" class="device-card card"><div class="device-icon">▤</div><div class="device-info"><div class="card-overline">EQUIPAMENTO</div><h2 id="device-name">Switch Huawei</h2><p id="device-model">Modelo e firmware aguardam identificação</p></div><div id="connection-state" class="connection-state"><i></i><span>Sem conexão</span></div></div>
+        <div class="mini-card card"><span class="mini-icon teal">◉</span><div class="card-overline">PORTAS COM LINK</div><strong id="ports-count">—</strong><small id="ports-count-note">Sem leitura do switch</small></div>
+        <div class="mini-card card"><span class="mini-icon violet">⌘</span><div class="card-overline">VLANS CADASTRADAS</div><strong id="vlan-count">—</strong><small id="vlan-count-note">Aguardando coleta</small></div>
+        <div class="mini-card card"><span class="mini-icon amber">◷</span><div class="card-overline">ÚLTIMA COLETA</div><strong id="last-read">—</strong><small id="last-read-note">Atualização manual</small></div>
+      </section>
+
+      <p id="physical-collection-note" class="panel-note physical-only" role="status">Aguardando leitura do console físico.</p>
       <section id="connections-panel" class="section dashboard-connections">
         <div class="section-heading"><div><div class="card-overline">PRESENÇA NO AMBIENTE</div><h2>Acessos e dispositivos conectados</h2></div><span class="subtle-tag">Atualização automática</span></div>
         <div class="connections-grid">
           <article class="card panel-card connection-panel">
-            <div class="panel-head"><div><div class="card-overline">QUIDWAY MANAGER</div><h2>Sessões recentes</h2></div><span class="connection-counter" id="active-session-count" aria-live="polite">—</span></div>
+            <div class="panel-head"><div><div class="card-overline">SWITCH MANAGER</div><h2>Sessões recentes</h2></div><span class="connection-counter" id="active-session-count" aria-live="polite">—</span></div>
             <p class="panel-note">Considera ativa uma sessão que fez uma requisição nos últimos 5 minutos. A conta atualmente configurada é única; se várias pessoas compartilharem a mesma conta, não será possível distingui-las.</p>
             <div id="manager-session-list" class="manager-session-list"><div class="empty-inline">Carregando sessões…</div></div>
           </article>
           <article class="card panel-card connection-panel">
             <div class="panel-head"><div><div class="card-overline">PORTAS DO SWITCH</div><h2>Dispositivos conectados</h2></div><span class="connection-counter pending" id="switch-device-count">—</span></div>
             <p id="switch-connections-note" class="panel-note">Ainda não há coleta de endereços MAC por porta validada para este firmware.</p>
-            <div class="device-connection-placeholder"><strong>Dados do switch aguardam validação</strong><span>Após validar as consultas, esta área poderá mostrar dispositivo (MAC), VLAN e porta. Um endereço MAC identifica um dispositivo, não necessariamente uma pessoa; sessões administrativas abertas diretamente no switch exigem outra consulta.</span></div>
+            <div id="physical-mac-list" class="physical-only"></div><div id="switch-device-placeholder" class="device-connection-placeholder"><strong>Dados do switch aguardam validação</strong><span>Após validar as consultas, esta área poderá mostrar dispositivo (MAC), VLAN e porta. Um endereço MAC identifica um dispositivo, não necessariamente uma pessoa; sessões administrativas abertas diretamente no switch exigem outra consulta.</span></div>
           </article>
         </div>
       </section>
@@ -54,12 +74,12 @@
         <div class="section-heading"><div><div class="card-overline">EQUIPAMENTO</div><h2>Informações do sistema</h2></div><span class="subtle-tag">Identificação anterior</span></div>
         <p class="panel-note system-note">Dados observados anteriormente no console. “Atualizar leitura” executa consultas fixas; as respostas aparecem no painel de Diagnóstico em Switching e não alteram automaticamente estes cartões.</p>
         <div class="system-grid">
-          <article class="card system-detail-card"><div class="card-overline">MODELO E SOFTWARE</div><h2>Quidway 3900-SI 28-Port</h2><dl><dt>Plataforma</dt><dd>VRP (R) Software</dd><dt>Versão</dt><dd>3.10(CN), RELEASE 0002</dd></dl></article>
-          <article class="card system-detail-card"><div class="card-overline">HARDWARE</div><h2>Revisões do equipamento</h2><dl><dt>Hardware</dt><dd>SI_REV.C</dd><dt>CPLD</dt><dd>001</dd><dt>Boot ROM</dt><dd>213</dd></dl></article>
-          <article class="card system-detail-card"><div class="card-overline">PORTAS FÍSICAS</div><h2>28 interfaces</h2><dl><dt>Fast Ethernet</dt><dd>24 portas</dd><dt>Gigabit Ethernet</dt><dd>4 portas</dd><dt>Processador</dt><dd>MIPS · 64 MB DRAM</dd></dl></article>
-          <article class="card system-detail-card"><div class="card-overline">CONSOLE LOCAL</div><h2>COM9 · 9600 baud</h2><dl><dt>Configuração</dt><dd>local-settings.ps1</dd><dt>Estado nesta sessão</dt><dd id="system-read-state">Ainda não consultado</dd><dt>Transporte</dt><dd>Serial · leitura disponível</dd></dl></article>
-          <article class="card system-detail-card"><div class="card-overline">ACESSO SSH</div><h2>Versão reportada: 1.5</h2><dl><dt>Manager</dt><dd>Não usa SSH 1.5</dd><dt>Acesso atual</dt><dd>Console serial local</dd></dl><p class="panel-note">O Manager não reduz as proteções SSH do computador para negociar uma versão antiga.</p></article>
-          <article class="card system-detail-card"><div class="card-overline">VALIDAÇÃO</div><h2>Leituras confirmadas</h2><dl><dt>display version</dt><dd>Executado anteriormente</dd><dt>display vlan</dt><dd>Executado anteriormente</dd><dt>Gravações de configuração</dt><dd>Não validadas</dd></dl></article>
+          <article class="card system-detail-card"><div id="system-model-overline" class="card-overline">MODELO E SOFTWARE</div><h2 id="system-model">Aguardando identificação</h2><dl><dt>Fabricante</dt><dd id="system-vendor">—</dd><dt>Versão</dt><dd id="system-version">—</dd></dl></article>
+          <article class="card system-detail-card"><div class="card-overline">HARDWARE</div><h2 id="system-hardware-title">Revisões do equipamento</h2><dl><dt>Hardware</dt><dd id="system-hardware">—</dd><dt>CPLD</dt><dd id="system-cpld">—</dd><dt>Boot ROM</dt><dd id="system-bootrom">—</dd></dl></article>
+          <article class="card system-detail-card"><div class="card-overline">PORTAS FÍSICAS</div><h2 id="system-ports-title">—</h2><dl><dt>Tipos</dt><dd id="system-ports-summary">Aguardando identificação</dd><dt>Perfil</dt><dd id="system-profile">—</dd></dl></article>
+          <article class="card system-detail-card"><div id="system-console-overline" class="card-overline">CONSOLE LOCAL</div><h2 id="system-console">Console serial</h2><dl><dt>Configuração</dt><dd id="system-console-config">local-settings.ps1</dd><dt>Estado nesta sessão</dt><dd id="system-read-state">Ainda não consultado</dd><dt>Transporte</dt><dd id="system-transport">Serial · leitura disponível</dd></dl></article>
+          <article class="card system-detail-card"><div class="card-overline">ACESSO SSH</div><h2>Não utilizado pelo Manager</h2><dl><dt>Acesso atual</dt><dd id="system-access">Console serial local</dd></dl><p class="panel-note">Switches VRP 3 costumam oferecer só SSH 1.5. O Manager não reduz as proteções SSH do computador para negociar uma versão antiga.</p></article>
+          <article class="card system-detail-card"><div class="card-overline">VALIDAÇÃO</div><h2>Configuração guiada</h2><dl><dt>Perfil do modelo</dt><dd id="system-validation">Aguardando identificação</dd><dt>Gravações</dt><dd id="system-writes">—</dd></dl></article>
         </div>
       </section>
 
@@ -68,12 +88,13 @@
           <div class="panel-head"><div><div class="card-overline">PORTAS</div><h2>Mapa de interfaces</h2></div><span class="subtle-tag">Vista conceitual</span></div>
           <p id="ports-note" class="panel-note">Numeração e quantidade variam conforme o submodelo. A vista só é preenchida com dados confirmados.</p>
           <div id="port-grid" class="port-grid"><div class="empty-inline">Ainda sem leitura de interfaces.</div></div>
+          <div id="physical-port-detail" class="physical-only panel-note port-detail" data-port="1">Selecione uma porta após a coleta.</div>
           <div class="legend"><span><i class="dot dot-up"></i>Com link</span><span><i class="dot dot-down"></i>Sem link</span><span><i class="dot dot-unknown"></i>Sem leitura</span></div>
         </article>
         <article id="vlans" class="card panel-card">
           <div class="panel-head"><div><div class="card-overline">SEGMENTAÇÃO</div><h2>VLANs</h2></div><span class="subtle-tag">Leitura somente</span></div>
           <p class="panel-note">A associação de portas depende do formato que o firmware retornar.</p>
-          <div class="table-wrap"><table><thead><tr><th>ID</th><th>Nome</th><th>Portas</th><th>Origem</th></tr></thead><tbody id="vlan-body"><tr><td colspan="4" class="table-empty">Aguardando leitura.</td></tr></tbody></table></div>
+          <div class="table-wrap"><table><thead><tr><th>ID</th><th>Descrição</th><th>Portas</th><th>Origem</th></tr></thead><tbody id="vlan-body"><tr><td colspan="4" class="table-empty">Aguardando leitura.</td></tr></tbody></table></div>
           <div class="callout">VLAN de camada 2 não significa, por si só, que exista roteamento entre redes.</div>
         </article>
       </section>
@@ -82,7 +103,7 @@
         <article id="monitoring" class="card panel-card">
           <div class="panel-head"><div><div class="card-overline">TRÁFEGO</div><h2>Monitoramento</h2></div><span class="subtle-tag">Sem amostras</span></div>
           <p class="panel-note">Gráficos serão habilitados depois de confirmar contadores e um intervalo de coleta seguro.</p>
-          <div class="chart-placeholder"><div class="chart-grid"></div><div class="chart-empty"><span class="chart-glyph">⌁</span><strong>Sem dados históricos</strong><small>Esta interface não inventa métricas no modo real.</small></div></div>
+          <div id="physical-traffic" class="physical-only"></div><div id="traffic-placeholder" class="chart-placeholder"><div class="chart-grid"></div><div class="chart-empty"><span class="chart-glyph">⌁</span><strong>Sem dados históricos</strong><small>Esta interface não inventa métricas no modo real.</small></div></div>
         </article>
         <article id="diagnostics" class="card panel-card diagnostics-card">
           <div class="panel-head"><div><div class="card-overline">CONEXÃO</div><h2>Diagnóstico do switch</h2></div><span id="transport-badge" class="ssh-badge">SSH</span></div>
@@ -91,13 +112,14 @@
         </article>
       </section>
 
+      <section id="virtual-details" class="section card panel-card" hidden><div class="panel-head"><h2>Estado do S3900 Virtual</h2><span id="virtual-save-state" class="subtle-tag"></span></div><h3>IPs de gestão</h3><pre id="virtual-ips"></pre><h3>Rotas estáticas</h3><pre id="virtual-routes"></pre><p class="panel-note">Estado simulado atualizado a cada 3 segundos. Não há tráfego Ethernet real.</p></section>
       <section id="configuration" class="section configuration-section">
         <div class="section-heading"><div><div class="card-overline">GERENCIAMENTO DO EQUIPAMENTO</div><h2>Configuração do switch</h2></div><span id="config-state" class="subtle-tag">Carregando</span></div>
         <div id="config-banner" class="config-banner">Revise a prévia e os avisos; cada operação só é enviada quando você clicar em Aplicar no switch.</div>
 
         <div class="config-grid">
           <article id="coverage-card" class="card panel-card coverage-card">
-            <div class="panel-head"><div><div class="card-overline">ESCOPO DE CONFIGURAÇÃO</div><h2>O que o Manager cobre</h2></div><span class="subtle-tag">S3900-SI · 28 portas</span></div>
+            <div class="panel-head"><div><div class="card-overline">ESCOPO DE CONFIGURAÇÃO</div><h2>O que o Manager cobre</h2></div><span id="config-scope-tag" class="subtle-tag">Switch não identificado</span></div>
             <p class="panel-note">A configuração é organizada por tarefas. Cada operação gera uma prévia e aguarda um clique em Aplicar. O backup fica disponível como opção recomendada. O catálogo será ampliado por recurso após validar a sintaxe do VRP 3.10(CN) RELEASE 0002.</p>
             <div class="coverage-grid">
               <div><b class="coverage-live">● Disponível na interface</b><span>VLANs, access/trunk/hybrid, descrição/estado das portas, nome do switch, IP de gestão, rotas estáticas, backup e salvar.</span></div>
@@ -108,20 +130,20 @@
           </article>
 
           <article id="vlan-config-card" class="card panel-card">
-            <div class="panel-head"><div><div class="card-overline">SEGMENTAÇÃO</div><h2>VLANs</h2></div><span class="subtle-tag">Criar, nomear, excluir</span></div>
+            <div class="panel-head"><div><div class="card-overline">SEGMENTAÇÃO</div><h2>VLANs</h2></div><span class="subtle-tag">Criar, descrever, excluir</span></div>
             <form id="vlan-form" class="config-form">
-              <label>Ação<select name="action" id="vlan-action"><option value="create_vlan">Criar VLAN</option><option value="rename_vlan">Alterar nome</option><option value="delete_vlan">Excluir VLAN</option></select></label>
+              <label>Ação<select name="action" id="vlan-action"><option value="create_vlan">Criar VLAN</option><option value="rename_vlan">Alterar descrição</option><option value="delete_vlan">Excluir VLAN</option></select></label>
               <label>ID da VLAN<input name="vlan_id" type="number" min="1" max="4094" value="10" required></label>
-              <label class="vlan-name-field">Nome<input name="name" maxlength="31" placeholder="USUARIOS"></label>
+              <label class="vlan-name-field">Descrição<input name="name" maxlength="31" placeholder="USUARIOS"></label>
               <button class="button button-secondary" type="submit">Pré-visualizar VLAN</button>
             </form>
             <p class="panel-note">A VLAN 1 padrão é protegida. Excluir outra VLAN pode interromper as portas e serviços associados.</p>
           </article>
 
           <article id="port-config-card" class="card panel-card">
-            <div class="panel-head"><div><div class="card-overline">INTERFACES</div><h2>Portas 1–28</h2></div><span class="subtle-tag">FE 1–24 · GE 25–28</span></div>
+            <div class="panel-head"><div><div class="card-overline">INTERFACES</div><h2 id="config-ports-title">Portas</h2></div><span id="config-ports-tag" class="subtle-tag">Aguardando identificação</span></div>
             <form id="port-form" class="config-form">
-              <label>Porta<input name="port" type="number" min="1" max="28" value="1" required></label>
+              <label>Porta<select name="port" id="config-port" required></select></label>
               <label>Operação<select name="action" id="port-action"><option value="set_access_port">Access</option><option value="set_trunk_port">Trunk</option><option value="set_hybrid_port">Hybrid</option><option value="set_port_description">Descrição</option><option value="set_port_state">Estado administrativo</option></select></label>
               <label class="port-vlan-field">VLANs permitidas no trunk<input name="vlans" placeholder="10,20,30"></label>
               <label class="port-access-field">VLAN access<input name="vlan_id" type="number" min="1" max="4094" value="10"></label>
@@ -170,6 +192,7 @@
           </article>
         </div>
 
+        <p id="config-feedback" class="config-feedback" role="status" aria-live="polite" hidden></p>
         <article id="config-preview" class="card panel-card config-preview" hidden>
           <div class="panel-head"><div><div class="card-overline">PRÉVIA DA OPERAÇÃO</div><h2 id="preview-summary">Revise antes de aplicar</h2></div><span class="subtle-tag">Expira em 5 minutos</span></div>
           <ul id="preview-warnings" class="warning-list"></ul>
@@ -181,8 +204,8 @@
       </section>
 
       <section id="cli-terminal" class="section cli-section">
-        <div class="section-heading"><div><div class="card-overline">CONSOLE SERIAL INTERATIVO</div><h2>CLI do Quidway</h2></div><span id="cli-state" class="subtle-tag">Desconectado</span></div>
-        <div class="config-banner cli-warning"><strong>Terminal direto:</strong> cada linha enviada é executada imediatamente no switch, sem prévia ou desfazer automático. Esta aba ignora o bloqueio QM_ENABLE_CONFIG_WRITES da configuração guiada e pode alterar o equipamento. Use um comando por vez, mantenha o cabo console conectado e revise a saída antes de continuar. A saída pode conter senhas ou hashes; ela fica visível nesta aba até você limpar a tela ou encerrá-la.</div>
+        <div class="section-heading"><div><div class="card-overline">CONSOLE SERIAL INTERATIVO</div><h2>CLI do switch</h2></div><span id="cli-state" class="subtle-tag">Desconectado</span></div>
+        <div class="config-banner cli-warning"><strong>Terminal direto:</strong> cada linha enviada é executada imediatamente no switch, sem prévia ou desfazer automático. Esta aba só conecta quando o acesso CLI for habilitado explicitamente por QM_ENABLE_CLI=true; pode alterar o equipamento mesmo quando a área guiada está bloqueada. Use um comando por vez, mantenha o cabo console conectado e revise a saída antes de continuar. A saída pode conter senhas ou hashes; ela fica visível nesta aba até você limpar a tela ou encerrá-la.</div>
         <article id="cli-connection" class="card panel-card cli-card">
           <div class="cli-toolbar"><div><div class="card-overline">PORTA SERIAL</div><p id="cli-connection-note" class="panel-note">O Manager usa a porta configurada em local-settings.ps1. Feche MobaXterm/Tera Term antes de conectar.</p></div><div class="cli-actions"><button id="cli-open" class="button button-primary" type="button">Conectar ao console</button><button id="cli-close" class="button button-secondary" type="button" disabled>Encerrar sessão</button></div></div>
           <div id="cli-output" class="cli-output" role="log" aria-live="polite" aria-label="Saída do terminal"><div class="cli-hint">A sessão só começa quando você clicar em Conectar. Nenhum comando de configuração será enviado automaticamente.</div></div>
@@ -194,9 +217,8 @@
           <p id="cli-result" class="config-result" role="status"></p>
         </article>
       </section>
-      <footer class="footer"><span>Quidway Manager · configuração com prévia</span><span>Console local · acesso remoto privado via tailnet</span></footer>
     </main>
   </div>
-  <script src="/static/app.js?v=20261105-9" defer></script>
+  <script src="/static/app.js?v=20261123-validation-1" defer></script>
 </body>
 </html>

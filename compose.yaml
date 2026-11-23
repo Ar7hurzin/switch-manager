@@ -1,0 +1,23 @@
+services:
+  app:
+    build: .
+    ports:
+      - "127.0.0.1:${QM_HOST_PORT:-8787}:8787"
+    environment:
+      QM_CONTAINER: "1"
+      QM_SETTINGS_FILE: /data/local-settings.ps1
+      QM_WEB_PORT: "8787"
+      QM_MODE: ${QM_MODE:-demo}
+      QM_ENABLE_CONFIG_WRITES: "false"
+      QM_ENABLE_CLI: "false"
+    volumes:
+      - sm-data:/data
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+volumes:
+  sm-data:
+    # Real volume name from before the rename to Switch Manager, so existing
+    # installations keep their SSO settings, access list and switch data.
+    # Another project (e.g. the virtual lab) sets QM_DATA_VOLUME to its own volume.
+    name: ${QM_DATA_VOLUME:-quidway-manager-s3900_qm-data}

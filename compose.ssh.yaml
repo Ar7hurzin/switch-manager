@@ -1,0 +1,10 @@
+# Copy verified known_hosts and a dedicated SSHv2 key into the private data volume first.
+services:
+  app:
+    environment:
+      QM_MODE: real
+      QM_SWITCH_HOST: "${QM_SWITCH_HOST:?Set QM_SWITCH_HOST}"
+      QM_SWITCH_PORT: "${QM_SWITCH_PORT:-22}"
+      QM_SWITCH_USER: "${QM_SWITCH_USER:?Set QM_SWITCH_USER}"
+      QM_KNOWN_HOSTS: /data/ssh/known_hosts
+      QM_SSH_KEY_FILE: /data/ssh/id_key
