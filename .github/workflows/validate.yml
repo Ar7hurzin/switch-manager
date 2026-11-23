@@ -1,4 +1,4 @@
-name: Quidway Manager validation
+name: Switch Manager validation
 on:
   push:
     branches: [main, 'redesign/**', 'feature/**']

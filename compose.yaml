@@ -11,9 +11,13 @@ services:
       QM_ENABLE_CONFIG_WRITES: "false"
       QM_ENABLE_CLI: "false"
     volumes:
-      - qm-data:/data
+      - sm-data:/data
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
 volumes:
-  qm-data:
+  sm-data:
+    # Real volume name from before the rename to Switch Manager, so existing
+    # installations keep their SSO settings, access list and switch data.
+    # Another project (e.g. the virtual lab) sets QM_DATA_VOLUME to its own volume.
+    name: ${QM_DATA_VOLUME:-quidway-manager-s3900_qm-data}

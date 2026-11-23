@@ -6,7 +6,7 @@
 # Configure QM_SERIAL_BAUD com a mesma velocidade usada na sessão de console.
 # $env:QM_MODE = 'serial'
 # $env:QM_SERIAL_PORT = 'COM9'
-# $env:QM_SERIAL_BAUD = '9600'
+# $env:QM_SERIAL_BAUD = '115200'
 # Gravações no switch começam bloqueadas; habilite só após revisar e validar o release.
 # $env:QM_ENABLE_CONFIG_WRITES = 'false'
 

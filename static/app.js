@@ -191,6 +191,13 @@ let lastPhysicalOutputKey = "";
 let lastPhysicalSnapshot = null;
 let currentDevice = null;
 let deviceBreadcrumb = "HUAWEI";
+const ACTION_LABELS = {
+  create_vlan: "criar VLAN", rename_vlan: "renomear VLAN", delete_vlan: "excluir VLAN",
+  set_access_port: "porta access", set_trunk_port: "porta trunk", set_hybrid_port: "porta hybrid",
+  set_port_description: "descrição da porta", set_port_state: "ativar/desativar porta", set_sysname: "nome do switch",
+  set_management_ip: "IP de gestão", add_static_route: "adicionar rota", delete_static_route: "excluir rota",
+  save: "salvar configuração",
+};
 
 function fillPortSelect(names) {
   const select = $("config-port");
@@ -232,20 +239,30 @@ function applyDevice(device, loginRequired = false, storedCredentials = false) {
   $("system-vendor").textContent = device.vendor;
   $("system-version").textContent = device.version;
   $("system-validation").textContent = device.profile_label;
+  const validatedCount = (device.validated_actions || []).length;
+  const pendingLabels = (device.guided_actions || [])
+    .filter(action => !(device.validated_actions || []).includes(action))
+    .map(action => ACTION_LABELS[action] || action);
+  const partial = !device.validated_writes && validatedCount > 0;
   $("system-writes").textContent = !device.guided_config ? "Indisponíveis · use a CLI"
-    : device.validated_writes ? "Validadas neste modelo" : "Adaptadas · modelo ainda não validado";
+    : device.validated_writes ? "Validadas neste modelo"
+    : partial ? `Validadas neste switch: ${validatedCount} de ${device.guided_actions.length} operações`
+    : "Adaptadas · modelo ainda não validado";
   if (appStatus.mode === "virtual") $("ports-note").textContent = ports.length + " interfaces simuladas. UP indica link virtual e porta habilitada.";
   fillPortSelect(ports);
   const text = !device.guided_config
     ? `Equipamento detectado: ${device.vendor} ${device.model} · ${device.note}`
     : device.validated_writes
     ? `Switch detectado: ${device.model} · ${device.version} · perfil validado (monitoramento e configuração guiada).`
-    : `Switch detectado: ${device.vendor} ${device.model} · ${device.version} · CONFIGURAÇÃO ADAPTADA: modelo ainda não validado. Confira cada prévia; operações que o switch recusar passam para a CLI.`;
+    : partial
+    ? `Switch detectado: ${device.vendor} ${device.model} · ${device.version} · configuração validada neste switch (${validatedCount} de ${device.guided_actions.length} operações). Ainda sem validação: ${pendingLabels.join(", ")}; nelas, confira a prévia.`
+    : `Switch detectado: ${device.vendor} ${device.model} · ${device.version} · CONFIGURAÇÃO ADAPTADA: modelo ainda não validado. Confira cada prévia; operações que o switch recusar passam para a CLI. Para validar, rode python start.py validate com o painel fechado.`;
   banner.hidden = false;
   banner.className = "mode-banner";
-  banner.classList.toggle("real", device.guided_config && device.validated_writes);
+  const trusted = device.guided_config && (device.validated_writes || partial);
+  banner.classList.toggle("real", trusted);
   banner.classList.toggle("error", !device.guided_config);
-  banner.innerHTML = `<span class="banner-icon">${device.guided_config && device.validated_writes ? "✓" : "!"}</span><span>${escapeHtml((changed ? "NOVO SWITCH: " : "") + text)}</span>`;
+  banner.innerHTML = `<span class="banner-icon">${trusted ? "✓" : "!"}</span><span>${escapeHtml((changed ? "NOVO SWITCH: " : "") + text)}</span>`;
   // A different switch: writes availability and the port catalog changed.
   if (changed || first) loadConfigurationStatus();
 }
@@ -427,7 +444,7 @@ function syncNavigation() {
     : pageKind === "system"
       ? ["Sistema", "EQUIPAMENTO <span>/</span> INFORMAÇÕES DO SISTEMA"]
     : pageKind === "cli"
-      ? ["CLI do Quidway", "GERENCIAMENTO <span>/</span> TERMINAL INTERATIVO"]
+      ? ["CLI do switch", "GERENCIAMENTO <span>/</span> TERMINAL INTERATIVO"]
       : pageKind === "monitoring"
       ? ["Monitoramento", "SWITCHING <span>/</span> VISÃO GERAL"]
       : ["Dashboard", "SWITCHES <span>/</span> " + deviceBreadcrumb];

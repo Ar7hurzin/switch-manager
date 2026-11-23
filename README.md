@@ -1,6 +1,6 @@
-# Quidway Manager
+# Switch Manager
 
-Painel local em português para observar e configurar, de forma controlada, um switch Huawei Quidway S3900. A versão atual oferece demonstração, simulador S3900, leitura SSHv2 e monitoramento contínuo pelo console serial. O perfil físico é Quidway 3900-SI 28-Port, VRP 3.10(CN) RELEASE 0002. As correções locais são testadas com respostas simuladas e não comprovam compatibilidade física de novos comandos de escrita nesse release.
+Painel local em português para observar e configurar, de forma controlada, switches Huawei antigos (VRP 3 / Comware 3) pelo console serial. O switch conectado é identificado sozinho e o painel se adapta a ele (veja [switches suportados](docs/switches-suportados.md)). A versão atual oferece demonstração, simuladores (S3900, S3026C e 3Com 4500), leitura SSHv2 e monitoramento contínuo pelo console serial. O perfil físico validado é Quidway 3900-SI 28-Port, VRP 3.10(CN) RELEASE 0002. As correções locais são testadas com respostas simuladas e não comprovam compatibilidade física de novos comandos de escrita nesse release.
 
 ## O que funciona
 
@@ -28,7 +28,7 @@ Para os comandos de uso diário e instalação em cada sistema, consulte [Comand
 A interface **Quidway Light** usa tema claro e o mesmo endereço local. Há um inicializador Python compartilhado para Windows/Linux; consulte [instalação nativa e Docker](docs/instalacao-docker.md) para comandos de instalação, autenticação, Docker Compose e limitações.
 
 
-Na primeira execução, abra a pasta `QuidwayManager` no VS Code. No terminal PowerShell dessa pasta, configure o login SSO:
+Na primeira execução, abra a pasta `switch-manager` no VS Code. No terminal PowerShell dessa pasta, configure o login SSO:
 
 ```powershell
 .\configure-login.ps1
@@ -46,7 +46,7 @@ O script prepara as bibliotecas na primeira execução e inicia o servidor. Abra
 
 O Tailscale Serve coloca o painel HTTPS **dentro da tailnet**, sem abrir uma porta no roteador e sem usar Funnel. As regras de acesso da tailnet continuam valendo. O computador que hospeda o app precisa permanecer ligado, conectado ao Tailscale, e com o app iniciado.
 
-1. Inicie o Quidway Manager com `.\start.ps1`.
+1. Inicie o Switch Manager com `.\start.ps1`.
 2. Execute `.\enable-tailnet.ps1` no PowerShell.
 3. Se o Tailscale informar que Serve ainda não está habilitado, abra o link oficial mostrado no terminal, entre na conta se necessário e aprove a ativação para a tailnet. Depois execute `.\enable-tailnet.ps1` novamente.
 4. O terminal mostrará o endereço HTTPS privado. Em outro dispositivo, conecte-se à mesma tailnet e abra esse endereço.
@@ -57,12 +57,12 @@ Consulte a documentação oficial de [Tailscale Serve](https://tailscale.com/doc
 
 ## Leitura pelo console serial
 
-Mantenha o computador conectado ao switch pelo cabo console. Confirme a porta COM no Gerenciador de Dispositivos e configure a velocidade igual à usada pelo terminal. O exemplo inicia com COM9 e 9600 baud, valores que ainda precisam ser conferidos. Feche Tera Term/MobaXterm para liberar a porta, copie `local-settings.example.ps1` para `local-settings.ps1` e habilite:
+Mantenha o computador conectado ao switch pelo cabo console. Confirme a porta COM no Gerenciador de Dispositivos e configure a velocidade igual à usada pelo terminal. O exemplo inicia com COM9 e 115200 baud, velocidade configurada no console do S3900 e do S3000 em 23/11/2026 (o padrão de fábrica é 9600); confira a porta COM. Feche Tera Term/MobaXterm para liberar a porta, copie `local-settings.example.ps1` para `local-settings.ps1` e habilite:
 
 ```powershell
 $env:QM_MODE = 'serial'
 $env:QM_SERIAL_PORT = 'COM9'
-$env:QM_SERIAL_BAUD = '9600'
+$env:QM_SERIAL_BAUD = '115200'
 ```
 
 Inicie com `.\start.ps1` no Windows ou `.venv/bin/python start.py` no Fedora. No modo serial a coleta é automática; a página consulta o cache e oculta o botão **Atualizar leitura**. O primeiro uso instala PySerial pelo `requirements.txt`. O Tailscale pode compartilhar o painel com a tailnet, mas o computador hospedeiro precisa ficar ligado e fisicamente conectado ao switch. A porta serial não é transportada para outro computador pelo Tailscale.
@@ -121,7 +121,7 @@ Feche e inicie novamente o app após alterar configurações. No modo SSH, use *
 
 ## Arquivo histórico
 
-O diretório `archives/` guarda o ZIP de código exportado anteriormente. Ele pode estar defasado em relação à versão atual do projeto; o conteúdo atualizado está nos arquivos versionados na raiz e em `static/` e `docs/`.
+O diretório `archives/` guarda o ZIP de código exportado anteriormente, de quando o projeto ainda se chamava Quidway Manager. Ele pode estar defasado em relação à versão atual do projeto; o conteúdo atualizado está nos arquivos versionados na raiz e em `static/` e `docs/`.
 
 ## Correções e validação local
 

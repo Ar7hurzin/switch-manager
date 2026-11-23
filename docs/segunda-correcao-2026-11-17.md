@@ -28,7 +28,7 @@ Referência: [Huawei Quidway S3900 Series Command Manual, Release 1510, seções
 A suíte foi ampliada com cenários de recuperação, resposta de interface errada, listas quebradas, starvation de VLANs, taxas antigas exportadas, ações concorrentes, logout durante abertura da CLI e mudança de modo entre prévia e aplicação.
 
 ```bash
-cd ~/Projetos/quidway-manager-s3900
+cd ~/Projetos/switch-manager
 .venv/bin/python -m unittest discover -s tests -v
 node --test tests/frontend_reliability.cjs
 node --check static/app.js

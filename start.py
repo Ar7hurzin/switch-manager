@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Start Quidway Manager on Windows, Linux or in a container."""
+"""Start Switch Manager on Windows, Linux or in a container."""
 import json
 import os
 import re
@@ -13,6 +13,8 @@ ROOT = Path(__file__).resolve().parent
 SETTINGS = Path(os.environ.get('QM_SETTINGS_FILE', ROOT / 'local-settings.ps1')).expanduser()
 AUTH = {'QM_OIDC_ISSUER', 'QM_OIDC_CLIENT_ID', 'QM_SECRET_KEY'}
 OIDC = AUTH | {'QM_OIDC_ADMIN_EMAIL', 'QM_OIDC_ALLOWED_EMAILS', 'QM_OIDC_CLIENT_SECRET', 'QM_OIDC_REDIRECT_URI', 'QM_OIDC_REQUIRE_MFA', 'QM_OIDC_MFA_AMR', 'QM_OIDC_ACCEPTED_ACR', 'QM_OIDC_ACR_VALUES', 'QM_OIDC_PROVIDER_LOGOUT', 'QM_OIDC_USER_CLAIM', 'QM_OIDC_REQUIRE_EMAIL_VERIFIED'}
+# Health 'service' names; the old one identifies instances started before the rename.
+SERVICE_NAMES = {'Switch Manager', 'Quidway Manager'}
 ALLOWED = OIDC | {'QM_MODE', 'QM_SERIAL_PORT', 'QM_SERIAL_BAUD', 'QM_WEB_PORT', 'QM_ENABLE_CONFIG_WRITES', 'QM_ENABLE_CLI', 'QM_HTTPS_ONLY', 'QM_CONNECT_TIMEOUT', 'QM_SWITCH_HOST', 'QM_SWITCH_PORT', 'QM_SWITCH_USER', 'QM_KNOWN_HOSTS', 'QM_SSH_KEY_FILE', 'QM_VIRTUAL_STATE', 'QM_ACCESS_FILE'}
 
 def load_settings():
@@ -33,21 +35,24 @@ def main():
         if sys.argv[1] == 'configure':
             from configure_login import main as configure
             return configure()
-        if sys.argv[1] == 'capture':
+        if sys.argv[1] in ('capture', 'validate'):
             for key, value in load_settings().items():
                 os.environ.setdefault(key, value)
             port = os.environ.get('QM_WEB_PORT', '8787')
             try:
                 # The serial port is exclusive: never capture while the panel polls the switch.
                 with urlopen(f'http://127.0.0.1:{port}/api/health', timeout=1) as resp:
-                    if json.load(resp).get('service') == 'Quidway Manager':
-                        print('O Quidway Manager está rodando e usa a porta serial. Encerre-o (Ctrl+C) antes da captura.', file=sys.stderr)
+                    if json.load(resp).get('service') in SERVICE_NAMES:
+                        print('O Switch Manager está rodando e usa a porta serial. Encerre-o (Ctrl+C) antes de continuar.', file=sys.stderr)
                         return 2
             except (URLError, OSError, ValueError):
                 pass
+            if sys.argv[1] == 'validate':
+                from model_validation import main as validate
+                return validate()
             from device_capture import main as capture
             return capture()
-        print('Uso: python start.py [configure|capture]', file=sys.stderr)
+        print('Uso: python start.py [configure|capture|validate]', file=sys.stderr)
         return 2
     for key, value in load_settings().items():
         os.environ.setdefault(key, value)
@@ -74,11 +79,11 @@ def main():
     try:
         with urlopen(url+'/api/health', timeout=1) as resp:
             info = json.load(resp)
-        if info.get('service') == 'Quidway Manager' and info.get('auth') == 'oidc' and info.get('auth_configured'):
-            print('Quidway Manager já está em execução: '+url, flush=True); return 0
-        if info.get('service') == 'Quidway Manager':
+        if info.get('service') in SERVICE_NAMES and info.get('auth') == 'oidc' and info.get('auth_configured'):
+            print('Switch Manager já está em execução: '+url, flush=True); return 0
+        if info.get('service') in SERVICE_NAMES:
             # An instance from before the SSO login must never be silently reused.
-            print('Um Quidway Manager de versão anterior (login por senha) está rodando na porta '+str(port)+'. '
+            print('Um Switch Manager de versão anterior (login por senha) está rodando na porta '+str(port)+'. '
                   'Encerre-o (Ctrl+C no terminal dele, ou: pkill -f "python start.py") e rode este comando novamente.', file=sys.stderr); return 2
         print('A porta '+str(port)+' já está ocupada por outro serviço. Encerre-o ou defina outra QM_WEB_PORT.', file=sys.stderr); return 2
     except (URLError, OSError, ValueError, AttributeError):
@@ -89,7 +94,7 @@ def main():
         print('Configuração SSO inválida: '+problems+' Execute python start.py configure.', file=sys.stderr); return 2
     from waitress import serve
     host = '0.0.0.0' if os.getenv('QM_CONTAINER') == '1' else '127.0.0.1'
-    print('Quidway Manager: '+url+' | modo: '+os.environ['QM_MODE'], flush=True)
+    print('Switch Manager: '+url+' | modo: '+os.environ['QM_MODE'], flush=True)
     start_live_monitor()
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     try:

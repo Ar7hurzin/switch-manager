@@ -61,6 +61,11 @@ class LiveMonitorTest(unittest.TestCase):
         self.assertEqual(live.status()["state"], "desatualizado")
         self.assertIsNone(live.status()["last_success"])
 
+    def test_possible_switch_swap_is_rechecked_without_backoff(self):
+        live = LiveMonitor(collect=lambda: {"stale": True, "identity_recheck": True, "message": "porta não reconhecida"},
+                           cli_busy=lambda: False, serial_lock=threading.Lock(), interval=4, retry_interval=12)
+        self.assertEqual(live._tick(), 4)
+
     def test_incomplete_coverage_does_not_backoff_healthy_serial_poll(self):
         live = LiveMonitor(collect=lambda: {"stale": False, "snapshot": {"coverage_partial": True}},
                            cli_busy=lambda: False, serial_lock=threading.Lock(), interval=4)

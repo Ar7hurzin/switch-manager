@@ -1,4 +1,4 @@
-"""OpenID Connect single sign-on for the local Quidway Manager.
+"""OpenID Connect single sign-on for the local Switch Manager.
 
 The browser authenticates at the identity provider (IdP). This server never
 receives, stores or hashes a user password: it only verifies a signed ID token
@@ -36,7 +36,7 @@ class OIDCNotAuthorized(OIDCError):
     """Fully verified identity (signature, nonce, e-mail, 2FA) that is not on the allowlist."""
 
     def __init__(self, identity: dict):
-        super().__init__("Esta conta não está autorizada neste Quidway Manager.")
+        super().__init__("Esta conta não está autorizada neste Switch Manager.")
         self.identity = identity
 
 
@@ -225,7 +225,7 @@ _OPENER = build_opener(_SecureRedirects())
 
 def _http_json(url: str, *, form: dict | None = None, basic_auth: tuple[str, str] | None = None) -> dict:
     """Single network primitive (patched by tests). Errors never leak details to the browser."""
-    headers = {"Accept": "application/json", "User-Agent": "QuidwayManager-OIDC/1"}
+    headers = {"Accept": "application/json", "User-Agent": "SwitchManager-OIDC/1"}
     body = None
     if form is not None:
         body = urlencode(form).encode("ascii")

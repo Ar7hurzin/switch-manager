@@ -1,6 +1,6 @@
 # Switches suportados e detecção automática
 
-Ao conectar o cabo console, o Quidway Manager lê o `display version`, identifica o switch e adapta o painel sozinho: nome e modelo, portas (descobertas no próprio switch), VLANs, tabela MAC e tráfego. Não é preciso reiniciar ao trocar de switch.
+Ao conectar o cabo console, o Switch Manager lê o `display version`, identifica o switch e adapta o painel sozinho: nome e modelo, portas (descobertas no próprio switch), VLANs, tabela MAC e tráfego. Não é preciso reiniciar ao trocar de switch.
 
 ## Perfis
 
@@ -42,9 +42,10 @@ A 9600 baud o console transmite cerca de 960 bytes por segundo, e isso limita a 
 
 ## Troca de switch
 
-O painel percebe a troca de duas formas:
+O painel percebe a troca de três formas:
 - **Prompt diferente** (`<NomeDoSwitch>`): a identificação é refeita na hora.
-- **Releitura do `display version` a cada 60 segundos**: pega a troca mesmo quando os dois switches têm o mesmo nome.
+- **Leitura que não bate com o switch esperado** (console sem resposta, porta ou resumo de portas não reconhecidos): o `display version` roda na mesma leitura ou na seguinte, sem esperar o intervalo de erro. Assim a troca aparece em poucos segundos mesmo quando os dois switches têm o mesmo nome de fábrica (`<Quidway>`).
+- **Releitura do `display version` a cada 60 segundos**, como garantia.
 
 Quando um switch diferente é identificado:
 - os dados do switch anterior são descartados;
@@ -59,9 +60,37 @@ Se o switch pedir usuário e senha no console, o painel mostra **Login no consol
 - Nunca são gravadas em disco, logs nem respostas da API.
 - São descartadas em quatro situações: ao trocar de switch, quando o switch recusa o login (sem nova tentativa automática, para não bloquear a conta), ao clicar em **Esquecer credenciais** e ao encerrar o programa.
 
+## Validar a configuração guiada no switch real
+
+Para tirar o aviso "modelo ainda não validado" de um modelo (por exemplo, o S3026C), rode o roteiro de validação **com o Switch Manager parado**:
+
+```bash
+.venv/bin/python start.py validate
+```
+
+No Windows: `.\.venv\Scripts\python.exe start.py validate`.
+
+O roteiro pergunta qual porta livre usar e duas VLANs de teste (padrão 3998 e 3999). Também pergunta se deve testar rotas estáticas (com um próximo salto informado por você) e o `save`. Depois ele:
+1. confere, só com comandos `display`, que a porta está na configuração de fábrica e sem link (com link, pede confirmação) e que as VLANs de teste não existem;
+2. copia a configuração em execução para `instance/validation/backup-*.txt` (permissão 600);
+3. aplica cada operação guiada **pelo mesmo executor do painel**, com a mesma verificação por leitura posterior: criar, renomear e excluir VLAN; porta access, trunk e hybrid; descrição; shutdown/undo shutdown; nome do switch (e de volta ao original); rotas, se escolhidas;
+4. devolve a porta à configuração de fábrica, exclui as VLANs de teste, restaura o nome e **confirma lendo a configuração**;
+5. só então, se escolhido, testa o `save`.
+
+Nada é salvo na inicialização sem o `save`. Se algo sair errado, reiniciar o switch sem salvar volta tudo ao que era.
+
+O resultado fica em `instance/validated-models.json`, por modelo e firmware. Ao reiniciar, o painel usa esse arquivo:
+- operações que passaram perdem o aviso na prévia;
+- o aviso do topo mostra quantas operações estão validadas e quais ainda não;
+- uma operação que o switch recusou passa a ser feita pela CLI, como no uso normal.
+
+O IP de gestão nunca é testado pelo roteiro, porque mudá-lo pode cortar o acesso ao switch. Por isso ele continua com aviso. Se a limpeza não for confirmada, nada é marcado como validado.
+
+O relatório `instance/validation/validacao-*.txt` traz cada etapa e a saída do console, sem senhas. Envie-o quando uma etapa falhar.
+
 ## Validar um modelo novo (captura)
 
-1. Pare o Quidway Manager (`Ctrl+C`). A porta serial é exclusiva.
+1. Pare o Switch Manager (`Ctrl+C`). A porta serial é exclusiva.
 2. Conecte o switch e rode:
    ```bash
    .venv/bin/python start.py capture

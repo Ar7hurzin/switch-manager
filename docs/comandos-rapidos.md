@@ -1,11 +1,11 @@
-# Quidway Manager Light — comandos rápidos
+# Switch Manager Light — comandos rápidos
 
 ## Fedora (seu notebook atual)
 
 Abra a pasta do projeto no VS Code e o terminal **Bash** (Terminal > New Terminal). Execute:
 
 ```bash
-cd ~/Projetos/quidway-manager-s3900
+cd ~/Projetos/switch-manager
 .venv/bin/python start-linux.py
 ```
 
@@ -18,8 +18,8 @@ Se a pasta não existir, clone o repositório privado após autenticar-se no Git
 ```bash
 mkdir -p ~/Projetos
 cd ~/Projetos
-git clone https://github.com/Ar7hurzin/quidway-manager-s3900.git
-cd quidway-manager-s3900
+git clone https://github.com/Ar7hurzin/switch-manager.git
+cd switch-manager
 git switch feature/s3900-virtual
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt

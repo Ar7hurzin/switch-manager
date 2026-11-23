@@ -1,4 +1,4 @@
-# Quidway Manager Light — instalação e operação
+# Switch Manager Light — instalação e operação
 
 Este guia cobre o mesmo painel em Windows, Fedora/Linux e contêiner Linux. A interface é clara, e o endereço padrão é **http://127.0.0.1:8787/login**. Não é necessário colocar o switch na internet. O modo demonstração usa dados fictícios e não envia comandos ao equipamento.
 
@@ -9,8 +9,8 @@ Este guia cobre o mesmo painel em Windows, Fedora/Linux e contêiner Linux. A in
 - Para Docker, Docker Desktop com contêineres Linux no Windows, ou Docker Engine com Compose V2 no Linux. Docker Desktop requer WSL 2/virtualização conforme documentação do fabricante. No Fedora, Podman pode ser usado para construir e executar a imagem, mas a disponibilidade e a compatibilidade do provedor Compose variam.
 
 ```bash
-git clone https://github.com/Ar7hurzin/quidway-manager-s3900.git
-cd quidway-manager-s3900
+git clone https://github.com/Ar7hurzin/switch-manager.git
+cd switch-manager
 # Caso a versão Light ainda esteja em revisão:
 git switch feature/s3900-virtual
 ```
@@ -68,7 +68,7 @@ docker compose ps
 docker compose logs -f app
 ```
 
-O segundo comando abre a configuração interativa do SSO ([login SSO com 2FA](login-sso.md)). Não coloque o client secret na linha de comando. O volume nomeado `qm-data` mantém `local-settings.ps1` com a configuração SSO e a chave de sessão fora da imagem e do Git. O container roda com usuário não-root. A porta publicada está limitada a `127.0.0.1` do host. Abra http://127.0.0.1:8787/login (ou a porta alternativa que escolheu). O indicador de saúde confirma que o login está configurado; não comprova que o switch físico está disponível.
+O segundo comando abre a configuração interativa do SSO ([login SSO com 2FA](login-sso.md)). Não coloque o client secret na linha de comando. O volume de dados (`sm-data` no `compose.yaml`, gravado no Docker como `quidway-manager-s3900_qm-data`, nome anterior à mudança para Switch Manager, mantido para não perder dados de instalações existentes; troque com `QM_DATA_VOLUME`) mantém `local-settings.ps1` com a configuração SSO e a chave de sessão fora da imagem e do Git. O container roda com usuário não-root. A porta publicada está limitada a `127.0.0.1` do host. Abra http://127.0.0.1:8787/login (ou a porta alternativa que escolheu). O indicador de saúde confirma que o login está configurado; não comprova que o switch físico está disponível.
 
 Operação diária:
 
@@ -86,27 +86,27 @@ docker compose down
 O Dockerfile foi construído e executado no Fedora com Podman rootless. Para operação manual sem Compose:
 
 ```bash
-podman build --format docker -t localhost/quidway-manager:light .
-podman volume create quidway-data
-podman run --rm -it -v quidway-data:/data localhost/quidway-manager:light configure
-podman run -d --name quidway-manager -p 127.0.0.1:8787:8787 -v quidway-data:/data localhost/quidway-manager:light
-podman logs -f quidway-manager
+podman build --format docker -t localhost/switch-manager:light .
+podman volume create quidway-data  # nome anterior à mudança para Switch Manager; mantido para preservar os dados
+podman run --rm -it -v quidway-data:/data localhost/switch-manager:light configure
+podman run -d --name switch-manager -p 127.0.0.1:8787:8787 -v quidway-data:/data localhost/switch-manager:light
+podman logs -f switch-manager
 ```
 
-Se a porta já estiver em uso, altere somente o lado do host (ex. `127.0.0.1:8788:8787`). Para parar: `podman stop quidway-manager`. Para iniciar: `podman start quidway-manager`. Remover o container não remove o volume nomeado. Para Compose com Podman, instale e confira um provedor compatível; não assuma que todos os recursos Docker Compose são idênticos.
+Se a porta já estiver em uso, altere somente o lado do host (ex. `127.0.0.1:8788:8787`). Para parar: `podman stop switch-manager`. Para iniciar: `podman start switch-manager`. Remover o container não remove o volume nomeado. Para Compose com Podman, instale e confira um provedor compatível; não assuma que todos os recursos Docker Compose são idênticos.
 
 ## 7. Conexão real: console serial
 
 O switch observado é Quidway 3900-SI 28-Port, VRP 3.10(CN) Release 0002. A sintaxe exata de escrita ainda não está validada. Feche Tera Term/MobaXterm/minicom antes da conexão. O servidor precisa estar fisicamente conectado ao cabo console, com adaptador apropriado; não conecte adaptador serial TTL a uma porta RS-232 sem compatibilidade elétrica.
 
-**Windows nativo:** identifique a COM no Gerenciador de Dispositivos. **Linux nativo:** `ls -l /dev/ttyUSB* /dev/ttyACM*` e `ls -l /dev/serial/by-id/` (se houver). Compare antes/depois de conectar. Use a porta real, baud original 9600, configuração 8N1. Confirme permissões com `ls -l /dev/ttyUSB0` e `id`; peça acesso pelo grupo proprietário do dispositivo conforme política da máquina, nunca `chmod 777`.
+**Windows nativo:** identifique a COM no Gerenciador de Dispositivos. **Linux nativo:** `ls -l /dev/ttyUSB* /dev/ttyACM*` e `ls -l /dev/serial/by-id/` (se houver). Compare antes/depois de conectar. Use a porta real, baud 115200 (o S3900 e o S3000 foram ajustados para 115200 em 23/11/2026; o padrão de fábrica é 9600), configuração 8N1. Confirme permissões com `ls -l /dev/ttyUSB0` e `id`; peça acesso pelo grupo proprietário do dispositivo conforme política da máquina, nunca `chmod 777`.
 
 No arquivo local existente `local-settings.ps1`, acrescente (sem apagar os dados do login):
 
 ```powershell
 $env:QM_MODE = 'serial'
 $env:QM_SERIAL_PORT = 'COM9'
-$env:QM_SERIAL_BAUD = '9600'
+$env:QM_SERIAL_BAUD = '115200'
 $env:QM_ENABLE_CONFIG_WRITES = 'false'
 $env:QM_ENABLE_CLI = 'false'
 ```

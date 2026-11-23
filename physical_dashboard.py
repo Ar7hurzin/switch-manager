@@ -315,6 +315,11 @@ class PhysicalDashboard:
         self.device = None
         self.prompt = None
         self.identity_checked = 0.0
+        # Set when the console stopped answering or a port read was not recognized:
+        # the cable may now be on another switch with the same default prompt
+        # (both ship as <Quidway>), so `display version` runs on the next poll
+        # instead of waiting for IDENTITY_RECHECK_SECONDS.
+        self.identity_suspect = False
         self.login_required = False
         # Command that lists the state of every port at once; None = not probed yet,
         # False = this switch rejects both forms.
@@ -383,6 +388,7 @@ class PhysicalDashboard:
                 "message": error, "collected_at": snapshot.get("collected_at") if snapshot else None,
                 "device": device.public() if device is not None else None,
                 "login_required": self.login_required,
+                "identity_recheck": self.identity_suspect,
                 "console_credentials": console_credentials.available}
 
     def collect(self, settings, force=False):
@@ -476,6 +482,7 @@ class PhysicalDashboard:
             new = None if command_rejected(text) else parse_port(text, number, self.inventory)
             if not new:
                 old["read_error"] = f"Porta {number}: resposta não reconhecida; leitura anterior preservada."
+                self.identity_suspect = True
                 fail(old["read_error"])
                 return
             stamp = observe()
@@ -507,6 +514,7 @@ class PhysicalDashboard:
                 if self.brief_command is None:
                     self.brief_command = False  # fall back to per-port reads only
                 else:
+                    self.identity_suspect = True
                     fail("Estado resumido das portas não reconhecido; leituras anteriores preservadas.")
                 return
             stamp = observe()
@@ -636,16 +644,17 @@ class PhysicalDashboard:
                     data = fresh()
                 self.prompt = name or self.prompt
                 self.priority_ports.update(link_events(decode_switch_text(wake), self.inventory))
-                if (data.get("identity_verified") and self.device is not None
-                        and time.monotonic() - self.identity_checked >= IDENTITY_RECHECK_SECONDS):
+                def same_switch():
                     current = identify(query(connection, "display version"))
                     self.identity_checked = time.monotonic()
-                    if current.identity_key != self.device.identity_key:
-                        notes.append(f"Novo switch detectado: {current.vendor} {current.model}.")
-                        self.reset()
-                        self.settings_key = key
-                        data = fresh()
-                if not data.get("identity_verified"):
+                    self.identity_suspect = False
+                    if current.identity_key == self.device.identity_key:
+                        return True
+                    notes.append(f"Novo switch detectado: {current.vendor} {current.model}.")
+                    return False
+
+                def bootstrap():
+                    nonlocal data
                     device = identify_switch(connection)
                     data = {**fresh(), **{k: v for k, v in data.items() if k not in ("ports",)}}
                     data["ports"] = self._port_template(device.inventory)
@@ -656,6 +665,22 @@ class PhysicalDashboard:
                     observe()
                     publish()
                     refresh_inventory(connection)
+
+                def start_over():
+                    nonlocal data
+                    self.reset()
+                    self.settings_key = key
+                    self.prompt = name
+                    data = fresh()
+                    bootstrap()
+
+                if (data.get("identity_verified") and self.device is not None
+                        and (self.identity_suspect
+                             or time.monotonic() - self.identity_checked >= IDENTITY_RECHECK_SECONDS)
+                        and not same_switch()):
+                    start_over()
+                elif not data.get("identity_verified"):
+                    bootstrap()
                 else:
                     # Every poll services a port. Priority work alternates with
                     # normal round-robin so repeated edits cannot starve others.
@@ -663,42 +688,49 @@ class PhysicalDashboard:
                     self.stage += 1
                     if self.brief_command is not False:
                         refresh_link_states(connection)
-                    if self.priority_ports and stage % 2:
-                        number = min(self.priority_ports)
-                        self.priority_ports.discard(number)
+                    if self.identity_suspect and not same_switch():
+                        # The link summary did not match this switch's ports: the
+                        # cable was moved. Identify the new switch in this same poll.
+                        start_over()
                     else:
-                        number = self.port_cursor % len(self.inventory) + 1
-                        self.port_cursor += 1
-                        self.priority_ports.discard(number)
-                    refresh_port(connection, number)
-                    maintenance = stage % 4
-                    if maintenance == 0:
-                        refresh_inventory(connection)
-                    elif maintenance == 1:
-                        # Alternate urgent and ordinary work. Rotate urgent IDs
-                        # too: a truncated inventory may re-add the lowest ID on
-                        # every poll, which must not starve later VLANs.
-                        rows = data.get("vlans") or []
-                        if self.priority_vlans and (self.priority_vlan_turn or not rows):
-                            ordered = sorted(self.priority_vlans)
-                            vlan = next((v for v in ordered if v > self.priority_vlan_cursor), ordered[0])
-                            self.priority_vlan_cursor = vlan
-                            self.priority_vlans.discard(vlan)
-                            self.priority_vlan_turn = False
-                            refresh_vlan_detail(connection, vlan)
-                        elif rows:
-                            vlan = rows[self.vlan_cursor % len(rows)]["id"]
-                            self.vlan_cursor += 1
-                            self.priority_vlans.discard(vlan)
-                            self.priority_vlan_turn = True
-                            refresh_vlan_detail(connection, vlan)
-                    elif maintenance == 2 and (not self.mac_attempt or time.monotonic() - self.mac_attempt >= 60):
-                        refresh_macs(connection)
+                        if self.priority_ports and stage % 2:
+                            number = min(self.priority_ports)
+                            self.priority_ports.discard(number)
+                        else:
+                            number = self.port_cursor % len(self.inventory) + 1
+                            self.port_cursor += 1
+                            self.priority_ports.discard(number)
+                        refresh_port(connection, number)
+                        maintenance = stage % 4
+                        if maintenance == 0:
+                            refresh_inventory(connection)
+                        elif maintenance == 1:
+                            # Alternate urgent and ordinary work. Rotate urgent IDs
+                            # too: a truncated inventory may re-add the lowest ID on
+                            # every poll, which must not starve later VLANs.
+                            rows = data.get("vlans") or []
+                            if self.priority_vlans and (self.priority_vlan_turn or not rows):
+                                ordered = sorted(self.priority_vlans)
+                                vlan = next((v for v in ordered if v > self.priority_vlan_cursor), ordered[0])
+                                self.priority_vlan_cursor = vlan
+                                self.priority_vlans.discard(vlan)
+                                self.priority_vlan_turn = False
+                                refresh_vlan_detail(connection, vlan)
+                            elif rows:
+                                vlan = rows[self.vlan_cursor % len(rows)]["id"]
+                                self.vlan_cursor += 1
+                                self.priority_vlans.discard(vlan)
+                                self.priority_vlan_turn = True
+                                refresh_vlan_detail(connection, vlan)
+                        elif maintenance == 2 and (not self.mac_attempt or time.monotonic() - self.mac_attempt >= 60):
+                            refresh_macs(connection)
                 publish()
             return self.cached()
         except (SerialReadOnlyError, OSError, ValueError) as exc:
+            self.identity_suspect = True  # cable pulled or console silent: confirm the switch next time
             fail(f"Falha em {active_command}: {exc}")
         except Exception:
+            self.identity_suspect = True
             fail("Erro na leitura serial em " + active_command + ". Verifique o console.")
         publish()
         if not data.get("model"):

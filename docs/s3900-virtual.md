@@ -22,12 +22,12 @@ Para voltar ao modo normal, encerre e remova as variáveis com `Remove-Item Env:
 ## Docker Compose
 Use um projeto separado e uma porta diferente. No Bash:
 ```bash
-export QM_MODE=virtual QM_HOST_PORT=8788
+export QM_MODE=virtual QM_HOST_PORT=8788 QM_DATA_VOLUME=qm-virtual_qm-data
 docker compose -p qm-virtual build
 docker compose -p qm-virtual run --rm app configure
 docker compose -p qm-virtual up -d
 ```
-No PowerShell, substitua o export por `$env:QM_MODE='virtual'; $env:QM_HOST_PORT='8788'`. O login do contêiner é independente. Não use `down -v` se quiser preservar o estado.
+No PowerShell, substitua o export por `$env:QM_MODE='virtual'; $env:QM_HOST_PORT='8788'; $env:QM_DATA_VOLUME='qm-virtual_qm-data'`. O login do contêiner é independente. Não use `down -v` se quiser preservar o estado.
 
 ## Primeiro teste
 1. Configuração > VLAN > Criar VLAN 100, nome LAB; gere a prévia e aplique.

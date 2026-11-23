@@ -94,7 +94,7 @@ def capture(settings: SerialSettings, credentials: ConsoleCredentials, output_di
     if inventory:
         device = device.with_inventory(inventory)
     header = [
-        "; Captura de leitura do Quidway Manager (somente comandos display; segredos removidos)",
+        "; Captura de leitura do Switch Manager (somente comandos display; segredos removidos)",
         f"; Criada em {datetime.now(timezone.utc).isoformat(timespec='seconds')}",
         f"; Porta serial: {settings.port} a {settings.baud_rate} baud",
         f"; Detecção: {device.vendor} · {device.model} · {device.version} · perfil {device.profile.id}",
@@ -121,7 +121,7 @@ def main() -> int:
         print(str(exc), file=sys.stderr)
         return 2
     print(f"Captura somente leitura em {settings.port} ({settings.baud_rate} baud).")
-    print("Feche o Quidway Manager e outros programas que usam a porta serial antes de continuar.")
+    print("Feche o Switch Manager e outros programas que usam a porta serial antes de continuar.")
     credentials = ConsoleCredentials()
     for attempt in range(2):
         try:

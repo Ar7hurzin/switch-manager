@@ -16,6 +16,8 @@ from console_auth import open_console
 PROMPT = re.compile(rb"(?m)(?:<[^>\r\n]+>|\[[^\]\r\n]+\])\s*$")
 CONFIRM = re.compile(rb"(?i)(?:\[\s*y\s*/\s*n\s*\]|\(y/n\)|\[y/n\])")
 MORE_MARKERS = (b"---- More ----", b"More: ")
+# Quiet time after a prompt before trusting it: late bytes from a slow console may follow.
+PROMPT_SETTLE_SECONDS = 0.20
 
 
 def _read_response(connection, timeout_seconds: int, allow_confirmation: bool = False, max_bytes: int = 512_000) -> tuple[bytes, bool]:
@@ -37,7 +39,7 @@ def _read_response(connection, timeout_seconds: int, allow_confirmation: bool = 
             if marker_count > handled_more:
                 connection.write(b" ")
                 handled_more = marker_count
-        elif data and PROMPT.search(bytes(data).rstrip()) and time.monotonic() - last_data >= 0.20:
+        elif data and PROMPT.search(bytes(data).rstrip()) and time.monotonic() - last_data >= PROMPT_SETTLE_SECONDS:
             return bytes(data), False
         else:
             time.sleep(0.01)
@@ -478,7 +480,7 @@ def export_current_configuration(settings: SerialSettings) -> tuple[bytes, str]:
         open_console(connection, settings.timeout_seconds)
         version = _check_target(connection, settings)
         response, _ = _exchange(connection, "display current-configuration", settings)
-        content = ("; Backup de leitura do Quidway Manager\r\n; Criado em " + datetime.now(timezone.utc).isoformat() + "\r\n; Identificação do switch:\r\n" + version + "\r\n\r\n" + response).encode("utf-8", errors="replace")
+        content = ("; Backup de leitura do Switch Manager\r\n; Criado em " + datetime.now(timezone.utc).isoformat() + "\r\n; Identificação do switch:\r\n" + version + "\r\n\r\n" + response).encode("utf-8", errors="replace")
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         return content, f"quidway-config-{timestamp}.txt"
     except SerialReadOnlyError as exc:

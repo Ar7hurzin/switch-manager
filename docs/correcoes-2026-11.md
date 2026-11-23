@@ -32,7 +32,7 @@ As formas de remoção vêm do **Huawei Quidway S3900 Series Command Manual, Rel
 ## Testes e execução
 
 ```bash
-cd ~/Projetos/quidway-manager-s3900
+cd ~/Projetos/switch-manager
 .venv/bin/python -m unittest discover -s tests -v
 node --test tests/frontend_reliability.cjs
 node --check static/app.js

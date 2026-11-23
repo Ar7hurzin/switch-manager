@@ -145,6 +145,49 @@ class DetectionTest(unittest.TestCase):
         self.assertEqual(result["device"]["model"], "3Com Switch 4500 26-Port")
         self.assertEqual(len(changes), 1)
 
+    def test_same_prompt_swap_is_found_on_next_poll_after_unrecognized_port(self):
+        s3900_ports = {f"display interface {name}": f"{name} current state : UP\nPVID: 1\nPort link-type: access"
+                       for name in S3900_INVENTORY.names}
+        dashboard, holder, _ = self.dashboard(FakeConsole(S3900_VERSION, prompt="Quidway", responses={
+            "display vlan": "Now, the following VLAN exist(s):\n 1(default)", **s3900_ports}))
+        changes = []
+        dashboard.listeners.append(changes.append)
+        dashboard.collect(SETTINGS, force=True)
+        dashboard.collect(SETTINGS, force=True)
+        self.assertEqual(dashboard.device.profile, S3900_PROFILE)
+        self.assertFalse(dashboard.identity_suspect)
+        # Same default prompt, periodic 60 s recheck not due yet.
+        holder["console"] = s3026c(prompt="Quidway")
+        dashboard.collect(SETTINGS, force=True)  # S3900 port name rejected by the S3026C
+        self.assertTrue(dashboard.identity_suspect)
+        dashboard.collect(SETTINGS, force=True)  # display version runs now
+        result = dashboard.collect(SETTINGS, force=True)
+        self.assertEqual(result["device"]["model"], "Quidway S3026C")
+        self.assertEqual(len(result["snapshot"]["ports"]), 26)
+        self.assertEqual([d.model for d in changes], ["Quidway S3026C"])
+
+    def test_swap_back_to_s3900_is_identified_in_the_same_poll(self):
+        dashboard, holder, _ = self.dashboard(s3026c(prompt="Quidway"))
+        dashboard.collect(SETTINGS, force=True)
+        dashboard.collect(SETTINGS, force=True)
+        self.assertEqual(dashboard.brief_command, "display brief interface")
+        brief = "\n".join(f"{name} UP" for name in S3900_INVENTORY.names)
+        holder["console"] = FakeConsole(S3900_VERSION, prompt="Quidway", responses={
+            "display brief interface": brief, "display vlan": "Now, the following VLAN exist(s):\n 1(default)"})
+        result = dashboard.collect(SETTINGS, force=True)  # S3026C port names absent from the summary
+        self.assertEqual(result["device"]["profile"], "quidway-s3900-si")
+        self.assertEqual(len(result["snapshot"]["ports"]), 28)
+
+    def test_console_failure_forces_identity_check_on_reconnect(self):
+        dashboard, holder, _ = self.dashboard(s3026c(prompt="Quidway"))
+        dashboard.collect(SETTINGS, force=True)
+        dashboard.identity_suspect = False
+        holder["console"] = FakeConsole("", prompt="Quidway")
+        holder["console"].write = lambda data: len(data)  # unplugged: nothing answers
+        with patch("physical_dashboard._read_until_prompt", side_effect=SerialReadOnlyError("Tempo esgotado")):
+            dashboard.collect(SETTINGS, force=True)
+        self.assertTrue(dashboard.identity_suspect)
+
     def test_unsupported_switch_is_reported_without_monitoring(self):
         dashboard, _, _ = self.dashboard(FakeConsole("Cisco IOS Software, C2960", prompt="Switch"))
         with self.assertRaises(SerialReadOnlyError):

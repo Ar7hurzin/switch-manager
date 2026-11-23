@@ -297,6 +297,7 @@ class VirtualConsole:
                 if p["mode"]!=m[1]: p.update(mode=m[1],pvid=1,tagged=[],untagged=[1])
                 return "",True
             if c in {"shutdown","undo shutdown"}: p["admin"]=c!="shutdown"; return "",True
+            if c == "undo description": p["description"]=""; return "",True
             m=re.fullmatch(r"description ([A-Za-z0-9 _.-]{1,64})",c)
             if m: p["description"]=m[1]; return "",True
             m=re.fullmatch(r"port (access vlan|trunk pvid vlan|hybrid pvid vlan) (\d+)",c)

@@ -1,4 +1,4 @@
-# Módulo de configuração do Quidway Manager
+# Módulo de configuração do Switch Manager
 
 ## Escopo implementado
 
@@ -44,7 +44,7 @@ Depois de validar o comando em console local e revisar o código, o operador pod
 $env:QM_ENABLE_CONFIG_WRITES = 'true'
 ```
 
-Reinicie o Quidway Manager para carregar a variável. A habilitação não executa mudanças por si só; cada ação ainda exige prévia, backup, frase e clique em **Aplicar no switch**.
+Reinicie o Switch Manager para carregar a variável. A habilitação não executa mudanças por si só; cada ação ainda exige prévia, backup, frase e clique em **Aplicar no switch**.
 
 ## Limites atuais
 

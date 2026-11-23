@@ -40,6 +40,8 @@ class SerialSettings:
 READ_ONLY_COMMANDS = ("display version", "display vlan")
 PROMPT = re.compile(rb"(?m)(?:<[^>\r\n]+>|\[[^\]\r\n]+\])\s*$")
 MORE_MARKERS = (b"---- More ----", b"More: ")
+# Quiet time after a prompt before trusting it: late bytes from a slow console may follow.
+PROMPT_SETTLE_SECONDS = 0.20
 
 
 LOGIN_PROMPT = re.compile(rb"(?i)(?:username|user name|login|password)[ \t]*:[ \t]*$")
@@ -63,7 +65,7 @@ def _read_until_prompt(connection, timeout_seconds: int, max_bytes: int = 256_00
             if marker_count > handled_more:
                 connection.write(b" ")
                 handled_more = marker_count
-        elif (data and time.monotonic() - last_data >= 0.20
+        elif (data and time.monotonic() - last_data >= PROMPT_SETTLE_SECONDS
               and (PROMPT.search(bytes(data).rstrip())
                    or (accept_login and LOGIN_PROMPT.search(bytes(data).rstrip())))):
             return bytes(data)

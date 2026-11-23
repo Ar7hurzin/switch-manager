@@ -1,6 +1,6 @@
 # Login SSO com 2FA (OpenID Connect)
 
-O Quidway Manager não tem mais login local. Quem entra se autentica no provedor de identidade da organização (Microsoft Entra ID, Keycloak, Authentik, Google…) com autenticação de dois fatores. O aplicativo **nunca recebe, guarda ou calcula hash de senha de usuário**. Ele só confere um ID token assinado pelo provedor.
+O Switch Manager não tem mais login local. Quem entra se autentica no provedor de identidade da organização (Microsoft Entra ID, Keycloak, Authentik, Google…) com autenticação de dois fatores. O aplicativo **nunca recebe, guarda ou calcula hash de senha de usuário**. Ele só confere um ID token assinado pelo provedor.
 
 ## Como funciona
 
@@ -56,9 +56,9 @@ No provedor, registre um aplicativo **Web** com:
 
 No **https://console.cloud.google.com**, com a sua conta Google:
 
-1. Crie um projeto, por exemplo `Quidway Manager`, no seletor de projetos no topo da página.
+1. Crie um projeto, por exemplo `Switch Manager`, no seletor de projetos no topo da página.
 2. Vá em **APIs e serviços → Tela de permissão OAuth** (ou **Google Auth Platform**) e clique em **Começar**:
-   - Nome do app: `Quidway Manager`. E-mail de suporte: o seu.
+   - Nome do app: `Switch Manager`. E-mail de suporte: o seu.
    - Público-alvo: **Externo**. Use **Interno** se todas as contas forem do mesmo Google Workspace.
    - Com o app em modo **Teste**, só entram os e-mails cadastrados em **Usuários de teste** (até 100). Para escalar, use **Publicar app**. Os escopos usados (`openid email profile`) não exigem revisão de segurança do Google.
 3. Em **Clientes → Criar cliente**:
@@ -78,14 +78,14 @@ O Google não informa no token se houve 2FA. Por isso o assistente grava `QM_OID
 No portal **https://entra.microsoft.com**, entre com uma conta de administrador da organização:
 
 1. Vá em **Identidade → Aplicativos → Registros de aplicativo → Novo registro**.
-   - Nome: `Quidway Manager`.
+   - Nome: `Switch Manager`.
    - Tipos de conta com suporte: **Somente contas neste diretório organizacional (locatário único)**.
    - URI de redirecionamento: plataforma **Web**, `http://127.0.0.1:8787/auth/callback`.
 2. Na **Visão geral** do aplicativo, copie o **ID do aplicativo (cliente)** e o **ID do diretório (locatário)**.
 3. Em **Certificados e segredos → Novo segredo do cliente**, crie o segredo e copie a coluna **Valor**. Ela só aparece uma vez. Anote a data de expiração para renovar antes.
 4. Exija 2FA para essas contas:
-   - Com licença Entra ID P1/P2: **Proteção → Acesso Condicional → Nova política**, aplicada aos usuários autorizados e ao aplicativo `Quidway Manager`, com **Conceder → Exigir autenticação multifator**.
-   - Sem P1: ative a **MFA por usuário** para as contas autorizadas. Os "Padrões de segurança" pedem MFA só em alguns logins, e o Quidway Manager recusa os logins em que o token não comprovar MFA.
+   - Com licença Entra ID P1/P2: **Proteção → Acesso Condicional → Nova política**, aplicada aos usuários autorizados e ao aplicativo `Switch Manager`, com **Conceder → Exigir autenticação multifator**.
+   - Sem P1: ative a **MFA por usuário** para as contas autorizadas. Os "Padrões de segurança" pedem MFA só em alguns logins, e o Switch Manager recusa os logins em que o token não comprovar MFA.
 5. Rode o assistente (`.venv/bin/python start.py configure`):
    - Issuer: `https://login.microsoftonline.com/<ID-do-diretório>/v2.0`, com o GUID do passo 2. Não use `common`, `organizations` nem o domínio da empresa.
    - Client ID e secret: os dos passos 2 e 3.

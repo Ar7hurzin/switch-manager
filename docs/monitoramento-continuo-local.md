@@ -24,7 +24,7 @@ serial, um worker consulta o console em segundo plano; a página apenas lê
   visual.
 - A coleta física executa pequenos lotes, com intervalo mínimo de ~4 segundos
   entre tentativas e pausa de ~12 segundos após erro. A duração total depende
-  do console de 9600 baud, tamanho da resposta e paginação do firmware.
+  do console serial (9600 baud por padrão, 115200 nos switches atuais), tamanho da resposta e paginação do firmware.
 - O rodízio percorre as 28 portas por igual, uma por ciclo. Uma alteração
   guiada pode antecipar sua porta, mas essa prioridade alterna com o rodízio
   normal. Não há mais portas ou VLANs fixas do laboratório na coleta.
@@ -52,7 +52,7 @@ serial, um worker consulta o console em segundo plano; a página apenas lê
 ## Validação de código
 
 ```bash
-cd ~/Projetos/quidway-manager-s3900
+cd ~/Projetos/switch-manager
 .venv/bin/python -m unittest discover -s tests -q
 node --check static/app.js
 node --test tests/frontend_reliability.cjs

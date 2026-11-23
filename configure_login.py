@@ -1,4 +1,4 @@
-"""Interactively configure SSO (OpenID Connect) login for Quidway Manager.
+"""Interactively configure SSO (OpenID Connect) login for Switch Manager.
 
 No user password is requested or stored: people sign in at the identity
 provider with two-factor authentication. This file only records which
@@ -57,7 +57,7 @@ def ask_secret(google: bool, attempts: int = 3) -> str | None:
 
 
 def main() -> int:
-    print("Configuração do login SSO (OpenID Connect) do Quidway Manager")
+    print("Configuração do login SSO (OpenID Connect) do Switch Manager")
     print("Nenhuma senha de usuário é pedida nem gravada: o login e o 2FA acontecem no provedor.\n")
     port = os.getenv("QM_WEB_PORT", "8787").strip() or "8787"
     issuer = ask("URL do emissor (issuer). Enter para contas Google", GOOGLE_ISSUER)
@@ -106,10 +106,10 @@ def main() -> int:
         print("\nATENÇÃO: o app NÃO vai conferir o 2FA no token. Ao autorizar uma conta nova, confirme "
               "antes que ela tem a verificação em duas etapas ativada.")
 
-    existing = SETTINGS.read_text(encoding="utf-8-sig") if SETTINGS.exists() else "# Configurações locais do Quidway Manager\n"
+    existing = SETTINGS.read_text(encoding="utf-8-sig") if SETTINGS.exists() else "# Configurações locais do Switch Manager\n"
     lines = [line for line in existing.splitlines() if not MANAGED.match(line)]
     lines = [line for line in lines
-             if not re.match(r"\s*# (Login local do Quidway Manager|Login SSO \(OpenID Connect\)|Valores 'amr' aceitos)", line)]
+             if not re.match(r"\s*# (Login local do (?:Switch|Quidway) Manager|Login SSO \(OpenID Connect\)|Valores 'amr' aceitos)", line)]
     while lines and not lines[-1].strip():
         lines.pop()
     lines.extend((
@@ -140,7 +140,7 @@ def main() -> int:
     print(f"\nSSO configurado em {SETTINGS.name}. Administrador: {settings.admin}.")
     print("Para liberar outras pessoas ou um domínio inteiro, entre no painel e abra Administração.")
     print(f"Cadastre no provedor a redirect URI: {settings.redirect_uri}")
-    print("Escopos usados: openid email profile. Reinicie o Quidway Manager: python start.py (Windows: .\\start.ps1).")
+    print("Escopos usados: openid email profile. Reinicie o Switch Manager: python start.py (Windows: .\\start.ps1).")
     return 0
 
 

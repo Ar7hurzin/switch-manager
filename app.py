@@ -1,4 +1,4 @@
-"""Quidway Manager: local monitoring and serial-console management for Quidway S3900."""
+"""Switch Manager: local monitoring and serial-console management for legacy Huawei VRP 3 switches."""
 from __future__ import annotations
 
 import os
@@ -33,6 +33,7 @@ from lab_capture import record_lab_reading
 from session_registry import SessionRegistry
 from oidc_auth import GOOGLE_ISSUER, OIDCClient, OIDCError, OIDCNotAuthorized, OIDCSettings
 from access_list import AccessList, AccessListError
+from model_validation import GUIDED_ACTIONS, ValidatedModels
 
 physical_dashboard = PhysicalDashboard()
 # The validated S3900 identity, used by the virtual switch and as the safe default
@@ -60,6 +61,29 @@ def _capability_key(device) -> str:
 
 def _unsupported_actions(device) -> dict:
     return switch_capabilities.unsupported(_capability_key(device)) if device is not None else {}
+
+
+# Operations that passed `python start.py validate` on this switch model and firmware.
+validated_models = ValidatedModels()
+
+
+def _validated_actions(device) -> set[str]:
+    if device is None:
+        return set()
+    if device.profile.validated_writes:
+        return set(GUIDED_ACTIONS)
+    return validated_models.actions(_capability_key(device))
+
+
+def _device_public(device) -> dict | None:
+    if device is None:
+        return None
+    public = device.public()
+    validated = _validated_actions(device)
+    public["validated_actions"] = [action for action in GUIDED_ACTIONS if action in validated]
+    public["guided_actions"] = list(GUIDED_ACTIONS)
+    public["validated_writes"] = validated >= set(GUIDED_ACTIONS)
+    return public
 
 atexit.register(cli_session.shutdown)
 
@@ -162,8 +186,8 @@ def _serial_exclusive(fn):
     return run
 
 
-LOGIN_PAGE = """<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="csrf-token" content="{{ csrf_token }}"><title>Entrar · Quidway Manager</title><link rel="stylesheet" href="/static/styles.css?v=20261121-nav-1"></head><body class="login-body"><main class="login-shell"><section class="login-hero"><div><div class="brand-mark">Q</div><h2>Gerencie sua infraestrutura de rede</h2><p>Quidway Manager · switches Huawei VRP 3<br>Monitoramento, diagnóstico e configuração em um único console.</p></div><small>CONSOLE DE GERENCIAMENTO PRIVADO</small></section><section class="login-card"><p class="card-overline">ACESSO PRIVADO · SSO</p><h1>Entrar</h1><p class="login-note">O login é feito no provedor da sua organização ({{ provider }}) com autenticação de dois fatores. Nenhuma senha é digitada ou guardada neste aplicativo.</p>{% if error %}<p class="login-error" role="alert">{{ error }}</p>{% endif %}<form method="post" action="/login"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button id="sso-login" class="button button-primary" type="submit" autofocus>Entrar com SSO</button></form><small>Somente contas autorizadas entram. A sessão termina depois de 8 horas.</small></section></main></body></html>"""
-SETUP_REQUIRED_PAGE = """<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Configurar acesso · Quidway Manager</title><link rel="stylesheet" href="/static/styles.css?v=20261121-nav-1"></head><body class="login-body"><main class="card setup-card"><h1>Configure o login SSO antes de iniciar</h1><p>O Quidway Manager está bloqueado até que o provedor OpenID Connect (emissor, client ID e e-mails autorizados) seja configurado. Execute o comando correspondente ao seu ambiente e reinicie o servidor.</p><p>Linux: <code>.venv/bin/python start.py configure</code></p><p>Windows: <code>.\\configure-login.ps1</code></p><p>Docker: <code>docker compose run --rm app configure</code></p></main></body></html>"""
+LOGIN_PAGE = """<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="csrf-token" content="{{ csrf_token }}"><title>Entrar · Switch Manager</title><link rel="stylesheet" href="/static/styles.css?v=20261121-nav-1"></head><body class="login-body"><main class="login-shell"><section class="login-hero"><div><div class="brand-mark">S</div><h2>Gerencie sua infraestrutura de rede</h2><p>Switch Manager · switches Huawei VRP 3<br>Monitoramento, diagnóstico e configuração em um único console.</p></div><small>CONSOLE DE GERENCIAMENTO PRIVADO</small></section><section class="login-card"><p class="card-overline">ACESSO PRIVADO · SSO</p><h1>Entrar</h1><p class="login-note">O login é feito no provedor da sua organização ({{ provider }}) com autenticação de dois fatores. Nenhuma senha é digitada ou guardada neste aplicativo.</p>{% if error %}<p class="login-error" role="alert">{{ error }}</p>{% endif %}<form method="post" action="/login"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button id="sso-login" class="button button-primary" type="submit" autofocus>Entrar com SSO</button></form><small>Somente contas autorizadas entram. A sessão termina depois de 8 horas.</small></section></main></body></html>"""
+SETUP_REQUIRED_PAGE = """<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Configurar acesso · Switch Manager</title><link rel="stylesheet" href="/static/styles.css?v=20261121-nav-1"></head><body class="login-body"><main class="card setup-card"><h1>Configure o login SSO antes de iniciar</h1><p>O Switch Manager está bloqueado até que o provedor OpenID Connect (emissor, client ID e e-mails autorizados) seja configurado. Execute o comando correspondente ao seu ambiente e reinicie o servidor.</p><p>Linux: <code>.venv/bin/python start.py configure</code></p><p>Windows: <code>.\\configure-login.ps1</code></p><p>Docker: <code>docker compose run --rm app configure</code></p></main></body></html>"""
 
 
 def _render_login(error: str = "", status: int = 200):
@@ -421,7 +445,7 @@ def _record_access_request(identity: dict) -> str:
     try:
         outcome = access_list.request(identity.get("email"), identity.get("name"))
     except (AccessListError, OSError):
-        return "Esta conta não está autorizada neste Quidway Manager."
+        return "Esta conta não está autorizada neste Switch Manager."
     return ACCESS_REQUEST_MESSAGES[outcome]
 
 
@@ -494,7 +518,7 @@ def cli_open():
     if not cli_enabled():
         return jsonify({"ok": False, "error": "CLI bloqueada. Defina QM_ENABLE_CLI=true somente após validar o ambiente."}), 403
     if not _cli_request_allowed():
-        return jsonify({"ok": False, "error": "Requisição bloqueada: use a interface local do Quidway Manager."}), 403
+        return jsonify({"ok": False, "error": "Requisição bloqueada: use a interface local do Switch Manager."}), 403
     if mode() not in {"serial", "virtual"}:
         return jsonify({"ok": False, "error": "O terminal CLI integrado exige QM_MODE=serial e o cabo console conectado a este computador."}), 409
     try:
@@ -648,6 +672,7 @@ def dashboard_cache():
     if mode() != "serial":
         return jsonify({"error": "Cache disponível somente no modo serial físico."}), 409
     result = physical_dashboard.cached()
+    result["device"] = _device_public(physical_dashboard.device)
     return jsonify({"mode": "serial", "ok": True, "cli_busy": cli_session.connected, "monitor": physical_monitor.status(), **result})
 
 
@@ -756,7 +781,7 @@ def _revoke_unauthorized_sessions() -> int:
 @app.get("/api/device")
 def device_info():
     device = current_device()
-    return jsonify({"mode": mode(), "device": device.public() if device is not None else None,
+    return jsonify({"mode": mode(), "device": _device_public(device),
                     "login_required": mode() == "serial" and physical_dashboard.login_required,
                     "console_credentials": console_credentials.available,
                     "console_credentials_armed": console_credentials.armed})
@@ -813,7 +838,7 @@ def configuration_capabilities_reset():
 
 @app.get("/api/health")
 def health():
-    return jsonify({"ok": True, "service": "Quidway Manager", "mode": mode(), "auth_required": True, "auth": "oidc", "auth_configured": _auth_configured()})
+    return jsonify({"ok": True, "service": "Switch Manager", "mode": mode(), "auth_required": True, "auth": "oidc", "auth_configured": _auth_configured()})
 
 
 @app.get("/api/connections")
@@ -851,17 +876,21 @@ def configuration_status():
     enabled = serial_mode and config_writes_enabled()
     device = current_device()
     incompatible = device is not None and not device.profile.guided_config
-    adapted = device is not None and device.profile.guided_config and not device.profile.validated_writes
+    validated = _validated_actions(device)
+    adapted = device is not None and device.profile.guided_config and not validated >= set(GUIDED_ACTIONS)
     unsupported = _unsupported_actions(device)
     return jsonify({
         "available": serial_mode and not incompatible,
         "writes_enabled": enabled,
-        "device": device.public() if device is not None else None,
+        "device": _device_public(device),
         "unsupported_actions": {action: info.get("command") for action, info in unsupported.items()},
         "message": (
             "Configuração virtual habilitada: nenhuma alteração física." if mode() == "virtual" else
             f"{device.model}: configuração guiada indisponível para este sistema. Use a CLI."
             if incompatible else
+            f"{device.model}: configuração guiada validada neste switch em {len(validated)} de {len(GUIDED_ACTIONS)} "
+            "operações; nas demais, confira cada prévia. Operações que o switch recusar passam para a CLI."
+            if adapted and enabled and validated else
             f"{device.model}: configuração guiada adaptada (modelo ainda não validado). Confira cada prévia; "
             "operações que o switch recusar passam para a CLI."
             if adapted and enabled else
@@ -909,7 +938,8 @@ def configuration_preview():
             "ok": True, "token": token, "action": plan.action,
             "summary": plan.summary, "commands": list(plan.commands),
             "warnings": ((["SIMULAÇÃO: somente o estado virtual será alterado."] if mode() == "virtual" else [])
-                         + ([UNVALIDATED_WARNING] if not device.profile.validated_writes else []) + list(plan.warnings)),
+                         + ([UNVALIDATED_WARNING] if plan.action not in _validated_actions(device) else [])
+                         + list(plan.warnings)),
             "expires_in_seconds": 300,
         })
     except ConfigurationError as exc:

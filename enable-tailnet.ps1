@@ -12,7 +12,7 @@ if (-not (Test-Path $tailscale)) {
 try {
     $null = Invoke-RestMethod -Uri "$url/api/health" -TimeoutSec 3
 } catch {
-    throw "O Quidway Manager não está ativo em $url. Inicie-o com .\start.ps1 e tente novamente."
+    throw "O Switch Manager não está ativo em $url. Inicie-o com .\start.ps1 e tente novamente."
 }
 
 $existing = (& $tailscale serve status 2>&1 | Out-String).Trim()
